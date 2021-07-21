@@ -1,7 +1,7 @@
 use log::{info, debug};
 
 use crate::mmu::Mmu;
-use crate::utils::{self, get_addr_from_registers};
+use crate::utils::get_addr_from_registers;
 use crate::register::Register;
 
 pub struct  Cpu {
@@ -51,7 +51,8 @@ impl Cpu {
     /// n = 8 bit immediate value
     /// Opcode for 06, 0E, 16, 1E, 26, 2E
     fn load_nn_n(&mut self, reg: Register) {
-        let value = self.mmu.read_byte(self.pc);
+        let pc = self.pc;
+        let value = self.mmu.read_byte(pc);
         debug!("Instruction load_nn_n reg: {}, value: {}", reg, value);
 
         match reg {
@@ -144,7 +145,9 @@ impl Cpu {
     /// Opcode for
     /// 70, 71, 72, 73, 74, 75, 77
     fn load_hl_r1(&mut self, reg1: Register) {
-        let addr = get_addr_from_registers(self.h, self.l);
+        let high_register = self.h;
+        let low_register = self.l;
+        let addr = get_addr_from_registers(high_register, low_register);
 
         let value = match reg1 {
             Register::A => self.a,
@@ -170,8 +173,12 @@ impl Cpu {
     ///
     /// Opcode for 36
     fn load_hl_imm(&mut self) {
-        let addr = get_addr_from_registers(self.h, self.l);
-        let value = self.mmu.read_byte(self.pc);
+        let high_register = self.h;
+        let low_register = self.l;
+        let pc = self.pc;
+
+        let addr = get_addr_from_registers(high_register, low_register);
+        let value = self.mmu.read_byte(pc);
         self.mmu.write_byte(addr, value);
         debug!("Instruction load_hl_imm hl: {}, value: {}", addr, value);
 
@@ -283,6 +290,197 @@ impl Cpu {
 
         self.add_program_count(1);
         self.add_clock(8);
+    }
+    
+    /// Put value a into address HL.
+    /// Then, Increment HL
+    /// Opcode for 22
+    fn load_hli_a(&mut self) {
+        let high_register = self.h;
+        let low_register = self.l;
+        let addr = get_addr_from_registers(high_register, low_register);
+        let value = self.a;
+        self.mmu.write_byte(addr, value);
+
+        self.l = self.l.wrapping_add(1);
+        if self.l == 0 {
+            self.h = self.h.wrapping_add(1);
+        }
+
+        debug!("Instruction load_hli_a addr: {}, value: {}", addr, value);
+
+        self.add_clock(8);
+    }
+
+    /// Put value a into address HL
+    /// Then, Decrement HL
+    /// Opcode for 32
+    fn load_hld_a(&mut self) {
+        let addr = get_addr_from_registers(self.h, self.l);
+        let value = self.a;
+        self.mmu.write_byte(addr, value);
+
+        self.l = self.l.wrapping_sub(1);
+        if self.l == 255 {
+            self.h = self.h.wrapping_sub(1);
+        }
+
+        debug!("Instruction load_hld_a addr: {}, value: {}", addr, value);
+
+        self.add_clock(8);
+    }
+
+    /// Put value at address HL into a
+    /// Then, Increment HL
+    /// Opcode for 2A
+    fn load_a_hli(&mut self) {
+        let high_register = self.h;
+        let low_register = self.l;
+        let addr = get_addr_from_registers(high_register, low_register);
+        self.a = self.mmu.read_byte(addr);
+
+        self.l = self.l.wrapping_add(1);
+        if self.l == 0 {
+            self.h = self.h.wrapping_add(1);
+        }
+
+        debug!("Instruction load_a_hli addr: {}", addr);
+
+        self.add_clock(8);
+    }
+
+    /// Put value at address HL into a
+    /// Then, Decrement HL
+    /// Opcode for 3A
+    fn load_a_hld(&mut self) {
+        let high_register = self.h;
+        let low_register = self.l;
+        let addr = get_addr_from_registers(high_register, low_register);
+        self.a = self.mmu.read_byte(addr);
+
+        self.l = self.l.wrapping_sub(1);
+        if self.l == 255 {
+            self.h = self.h.wrapping_sub(1);
+        }
+
+        debug!("Instruction load_a_hli addr: {}", addr);
+
+        self.add_clock(8);
+    }
+
+    /// Put A into memory address $FF00 + n
+    /// n = one byte immediate value
+    /// Opcode for E0
+    fn load_n_a(&mut self) {
+        let pc = self.pc;
+        let n = self.mmu.read_byte(pc);
+        let addr = 0xFF00 + n as u16;
+        let value = self.a;
+        self.mmu.write_byte(addr, value);
+
+        debug!("Instruction load_n_a addr: {}, value: {}", addr, value);
+
+        self.add_program_count(1);
+        self.add_clock(12);
+    }
+
+    /// Put memory address $FF00 + n into A
+    /// n = one byte immediate value
+    /// Opcode for F0
+    fn load_a_n(&mut self) {
+        let pc = self.pc;
+        let n = self.mmu.read_byte(pc);
+        let addr = 0xFF00 + n as u16;
+        let value = self.mmu.read_byte(addr);
+        self.a = value;
+
+        debug!("Instruction load_a_n addr: {}, value: {}", addr, value);
+
+        self.add_program_count(1);
+        self.add_clock(12);
+    }
+
+    /// Put value nn into n.
+    /// nn = 16 bit immediate value
+    /// n = BC, DE, HL, SP
+    /// Opcode for 01, 11, 21, 31
+    fn load_n_nn(&mut self, reg: Register) {
+        let pc = self.pc;
+        let low_value = self.mmu.read_byte(pc);
+        let high_value = self.mmu.read_byte(pc+1);
+
+        match reg {
+           Register::BC => {self.b = high_value; self.c = low_value;},
+           Register::DE => {self.d = high_value; self.e = low_value;},
+           Register::HL => {self.h = high_value; self.l = low_value;},
+           Register::SP => {self.sp = ((high_value as u16) << 8) + low_value as u16;},
+           _ => panic!("Invalid register: {}", reg),
+        }
+
+        debug!("Instruction load_n_nn high_value: {}, low_value: {}", high_value, low_value);
+
+        self.add_program_count(2);
+        self.add_clock(12);
+    }
+
+    /// Put HL into SP
+    /// Opcode for F9
+    fn load_sp_hl(&mut self) {
+        self.sp = ((self.h as u16) << 8) + self.l as u16;
+        debug!("Instruction load_sp_hl");
+
+        self.add_program_count(8);
+    }
+
+    /// Put SP + n effective address into HL.
+    /// n = one byte signed immediate value.
+    /// Opcode for F8
+    ///
+    /// Affected Flag:
+    /// Z reset
+    /// N reset
+    /// H Set or reset according to operation.
+    /// C Set or reset according to operation.
+    fn load_sp_n(&mut self) {
+        // Add a signed integer to an unsigned integer reference URL
+        // https://stackoverflow.com/questions/53453628/how-do-i-add-a-signed-integer-to-an-unsigned-integer-in-rust
+        let sp = self.sp;
+        let pc = self.pc;
+        let n = self.mmu.read_byte(pc) as i8 as u16;
+
+        let value = sp.wrapping_add(n);
+
+        self.h = (value >> 8) as u8;
+        self.l = value as u8;
+
+        debug!("Instruction load_sp_n sp: {}, n: {}", sp, n as i8);
+        
+        let half_carry_flag = (sp & 0x0f) + (n & 0x0f) > 0x0f;
+        let carry_flag      = (sp & 0xff) + (n & 0xff) > 0xff;
+
+        self.set_zero_flag(false);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_program_count(1);
+        self.add_clock(12);
+    }
+
+    /// Put SP at address nn
+    /// nn = two byte immediate address
+    /// Opcode for 08
+    fn load_nn_sp(&mut self) {
+        let pc = self.pc;
+        let sp = self.sp;
+        let addr = self.mmu.read_word(pc);
+
+        self.mmu.write_word(addr, sp);
+
+        debug!("Instruction load_nn_sp addr: {}, sp: {}", addr, sp);
+            
+        self.add_program_count(2);
+        self.add_clock(20);
     }
 
     // fn nop(&mut self) {

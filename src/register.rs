@@ -10,6 +10,8 @@ pub enum Register {
     BC,
     DE,
     HL,
+    SP,
+    PC,
 }
 
 impl fmt::Display for Register {
@@ -25,6 +27,8 @@ impl fmt::Display for Register {
             Register::BC => write!(f, "BC"),
             Register::DE => write!(f, "DE"),
             Register::HL => write!(f, "HL"),
+            Register::SP => write!(f, "SP"),
+            Register::PC => write!(f, "PC"),
         }
     }
 }

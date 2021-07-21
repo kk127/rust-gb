@@ -21,7 +21,7 @@ impl Mmu {
         todo!();
     }
 
-    pub fn write_word(&mut self, addr: u16, value: u8) -> u8 {
+    pub fn write_word(&mut self, addr: u16, value: u16) -> u8 {
         todo!();
     }
 }
