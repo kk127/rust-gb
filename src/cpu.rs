@@ -337,7 +337,7 @@ impl Cpu {
     }
 
     fn add_clock(&mut self, count: u32) {
-        self.clock += self.clock.wrapping_add(count)
+        self.clock = self.clock.wrapping_add(count)
     }
 
     fn set_zero_flag(&mut self, flag: bool) {
