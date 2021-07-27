@@ -1,10 +1,12 @@
 use std::{fmt};
+#[derive(Clone, Copy)]
 pub enum Register {
     A,
     B,
     C,
     D,
     E,
+    F,
     H,
     L,
     BC,
@@ -22,6 +24,7 @@ impl fmt::Display for Register {
             Register::C => write!(f, "C"),
             Register::D => write!(f, "D"),
             Register::E => write!(f, "E"),
+            Register::F => write!(f, "F"),
             Register::H => write!(f, "H"),
             Register::L => write!(f, "L"),
             Register::BC => write!(f, "BC"),
