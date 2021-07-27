@@ -560,6 +560,100 @@ impl Cpu {
         self.add_clock(12);
     }
 
+    /// Add register n value to A.
+    /// n = A, B,C,D,E,H,L
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N reset
+    /// H Set if carry from bit 3
+    /// C Set if carry from bit 7
+    ///
+    /// Opcode for 87, 80, 81, 82, 83, 84, 85
+    fn add_a_r(&mut self, reg: Register) {
+        debug!("Instruction add_a_r reg: {}", reg);
+
+        let value = match reg {
+            Register::A => self.a,
+            Register::B => self.b,
+            Register::C => self.c,
+            Register::D => self.d,
+            Register::E => self.e,
+            Register::H => self.h,
+            Register::L => self.l,
+            _ => panic!("Invalid register {}", reg),
+        };
+
+        let half_carry_flag = (self.a & 0x0f) + (value & 0x0f) > 0x0f;
+        let (res, carry_flag) = self.a.overflowing_add(value);
+
+        self.a = res;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(4);
+    }
+
+    /// Add HL value to A
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N reset
+    /// H Set if carry from bit 3
+    /// C Set if carry from bit 7
+    ///
+    /// Opcode for 86
+    fn add_a_hl(&mut self) {
+        debug!("Instruction add_a_hl");
+
+        let addr = get_addr_from_registers(self.h, self.l);
+        let value = self.mmu.read_byte(addr);
+
+        let half_carry_flag = (self.a & 0x0f) + (value & 0x0f) > 0x0f;
+        let (res, carry_flag) = self.a.overflowing_add(value);
+
+        self.a = res;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(8);
+    }
+
+    /// Add d8 to A
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N reset
+    /// H Set if carry from bit 3
+    /// C Set if carry from bit 7
+    ///
+    /// Opcode for C6
+    fn add_a_d8(&mut self) {
+        debug!("Instruction add_a_d8");
+
+        let addr = self.pc;
+        let value = self.mmu.read_byte(addr);
+
+        let half_carry_flag = (self.a & 0x0f) + (value & 0x0f) > 0x0f;
+        let (res, carry_flag) = self.a.overflowing_add(value);
+
+        self.a = res;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_program_count(1);
+        self.add_clock(8);
+    }
+
     fn add_program_count(&mut self, count: u16) {
         self.pc = self.pc.wrapping_add(count)
     }
