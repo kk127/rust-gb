@@ -718,7 +718,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_get_byte_flags_zero() {
+    fn test_get_byte_from_flags_zero() {
         let mut cpu = Cpu::new();
         cpu.set_zero_flag(true);
         let res = cpu.get_byte_from_flags();
@@ -726,7 +726,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_byte_flags_sub() {
+    fn test_get_byte_from_flags_sub() {
         let mut cpu = Cpu::new();
         cpu.set_subtraction_flag(true);
         let res = cpu.get_byte_from_flags();
@@ -734,7 +734,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_byte_flags_half() {
+    fn test_get_byte_from_flags_half() {
         let mut cpu = Cpu::new();
         cpu.set_half_carry_flag(true);
         let res = cpu.get_byte_from_flags();
@@ -742,7 +742,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_byte_flags_carry() {
+    fn test_get_byte_from_flags_carry() {
         let mut cpu = Cpu::new();
         cpu.set_carry_flag(true);
         let res = cpu.get_byte_from_flags();
@@ -750,7 +750,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_byte_flags_all() {
+    fn test_get_byte_from_flags_all() {
         let mut cpu = Cpu::new();
         cpu.set_zero_flag(true);
         cpu.set_subtraction_flag(true);
