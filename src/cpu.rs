@@ -851,6 +851,108 @@ impl Cpu {
         self.add_clock(8);
     }
 
+    /// Subtract n + Carry flag from A
+    /// n = A, B, C, D, E, H, L
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Set
+    /// H Set if no borrow from bit 4
+    /// C Set if no borrow
+    ///
+    /// Opcode for 9F, 98, 99, 9A, 9B, 9C, 9D
+    fn sbc_a_n(&mut self, reg: Register) {
+        debug!("Instruction sbc_a_n reg: {}", reg);
+
+        let c = if self.carry_flag { 1 } else { 0 };
+
+        let value = match reg {
+            Register::A => self.a,
+            Register::B => self.b,
+            Register::C => self.c,
+            Register::D => self.d,
+            Register::E => self.e,
+            Register::H => self.h,
+            Register::L => self.l,
+            _ => panic!("Invalid register {}", reg),
+        };
+
+        let res = self.a.wrapping_sub(value).wrapping_sub(c);
+        let half_carry_flag = (self.a & 0x0f) < (value & 0x0f) + c;
+        let carry_flag = (self.a as u16) < (value as u16) + (c as u16);
+
+        self.a = res;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(true);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(4);
+    }
+
+    /// Subtract (HL) + carry flag from A
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Set
+    /// H Set if no borrow from bit 4
+    /// C Set if no borrow
+    ///
+    /// Opcode for 9E
+    fn sbc_a_hl(&mut self) {
+        debug!("Instruction sbc_a_hl");
+
+        let addr = get_addr_from_registers(self.h, self.l);
+        let value = self.mmu.read_byte(addr);
+
+        let c = if self.carry_flag { 1 } else { 0 };
+
+        let res = self.a.wrapping_sub(value).wrapping_sub(c);
+        let half_carry_flag = (self.a & 0x0f) < (value & 0x0f) + c;
+        let carry_flag = (self.a as u16) < (value as u16) + (c as u16);
+
+        self.a = res;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(true);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(8);
+    }
+
+    /// Subtract d8 + Carry flag from A
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Set
+    /// H Set if no borrow from bit 4
+    /// C Set if no borrow
+    ///
+    /// Opcode for DE
+    fn sbc_a_d8(&mut self) {
+        debug!("Instruction sbc_a_d8");
+
+        let addr = self.pc;
+        let value = self.mmu.read_byte(addr);
+
+        let c = if self.carry_flag { 1 } else { 0 };
+
+        let res = self.a.wrapping_sub(value).wrapping_sub(c);
+        let half_carry_flag = (self.a & 0x0f) < (value & 0x0f) + c;
+        let carry_flag = (self.a as u16) < (value as u16) + (c as u16);
+
+        self.a = res;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(true);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_program_count(1);
+        self.add_clock(8);
+    }
     pub fn exec(&mut self, opcode: u8) {
         match opcode {
             // 00
@@ -1015,14 +1117,14 @@ impl Cpu {
             0x95 => self.sub_a_n(Register::L),
             0x96 => self.sub_a_hl(),
             0x97 => self.sub_a_n(Register::A),
-            0x98 => todo!(),
-            0x99 => todo!(),
-            0x9A => todo!(),
-            0x9B => todo!(),
-            0x9C => todo!(),
-            0x9D => todo!(),
-            0x9E => todo!(),
-            0x9F => todo!(),
+            0x98 => self.sbc_a_n(Register::B),
+            0x99 => self.sbc_a_n(Register::C),
+            0x9A => self.sbc_a_n(Register::D),
+            0x9B => self.sbc_a_n(Register::E),
+            0x9C => self.sbc_a_n(Register::H),
+            0x9D => self.sbc_a_n(Register::L),
+            0x9E => self.sbc_a_hl(),
+            0x9F => self.sbc_a_n(Register::A),
             // A0
             0xA0 => todo!(),
             0xA1 => todo!(),
@@ -1089,7 +1191,7 @@ impl Cpu {
             0xDB => todo!(),
             0xDC => todo!(),
             0xDD => todo!(),
-            0xDE => todo!(),
+            0xDE => self.sbc_a_d8(),
             0xDF => todo!(),
             // E0
             0xE0 => self.load_n_a(),
