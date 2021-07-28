@@ -270,7 +270,7 @@ impl Cpu {
     }
 
     /// Put value at address 0xFF00 + register C into A
-    /// Opcode for E2
+    /// Opcode for F2
     fn load_a_c(&mut self) {
         let addr = 0xFF00 + self.c as u16;
         let value = self.mmu.read_byte(addr);
@@ -283,7 +283,7 @@ impl Cpu {
     }
 
     /// Put A into address 0xFF00 + register C
-    /// Opcode for F2
+    /// Opcode for E2
     fn load_c_a(&mut self) {
         let addr = 0xFF00 + self.c as u16;
         let value = self.a;
@@ -652,6 +652,480 @@ impl Cpu {
 
         self.add_program_count(1);
         self.add_clock(8);
+    }
+
+    /// Add n + Carry flag to A
+    /// n = A, B, C, D, E, H, L
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N reset
+    /// H Set if carry from bit 3
+    /// C Set if carry from bit 7
+    ///
+    /// Opcode for 8F, 88, 89, 8A, 8B, 8C, 8D
+    fn adc_a_n(&mut self, reg: Register) {
+        debug!("Instruction adc_a_n reg: {}", reg);
+
+        let c = if self.carry_flag { 1 } else { 0 };
+
+        let register_value = match reg {
+            Register::A => self.a,
+            Register::B => self.b,
+            Register::C => self.c,
+            Register::D => self.d,
+            Register::E => self.e,
+            Register::H => self.h,
+            Register::L => self.l,
+            _ => panic!("Invalid register {}", reg),
+        };
+
+        let res = self.a.wrapping_add(register_value).wrapping_add(c);
+        let half_carry_flag = (self.a & 0x0f) + (register_value & 0x0f) + c > 0x0f;
+        let carry_flag = (self.a as u16) + (register_value as u16) + (c as u16) > 0xff;
+
+        self.a = res;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(4);
+    }
+
+    /// Add HL value + Carry flag to A
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N reset
+    /// H Set if carry from bit 3
+    /// C Set if carry from bit 7
+    ///
+    /// Opcode for 8E
+    fn adc_a_hl(&mut self) {
+        debug!("Instruction adc_a_hl");
+
+        let c = if self.carry_flag { 1 } else { 0 };
+
+        let addr = get_addr_from_registers(self.h, self.l);
+        let value = self.mmu.read_byte(addr);
+
+        let res = self.a.wrapping_add(value).wrapping_add(c);
+        let half_carry_flag = (self.a & 0x0f) + (value & 0x0f) > 0x0f;
+        let carry_flag = (self.a as u16) + (value as u16) + (c as u16) > 0xff;
+
+        self.a = res;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(8);
+    }
+
+    /// Add d8 + Carry flag to A
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N reset
+    /// H Set if carry from bit 3
+    /// C Set if carry from bit 7
+    ///
+    /// Opcode for CE
+    fn adc_a_d8(&mut self) {
+        debug!("Instruction adc_a_d8");
+
+        let c = if self.carry_flag { 1 } else { 0 };
+
+        let addr = self.pc;
+        let value = self.mmu.read_byte(addr);
+
+        let res = self.a.wrapping_add(value).wrapping_add(c);
+        let half_carry_flag = (self.a & 0x0f) + (value & 0x0f) > 0x0f;
+        let carry_flag = (self.a as u16) + (value as u16) + (c as u16) > 0xff;
+
+        self.a = res;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_program_count(1);
+        self.add_clock(8);
+    }
+
+    /// Subtract n from A
+    /// n = A, B, C, D, E, H, L
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Set
+    /// H Set if no borrow from bit 4
+    /// C Set if no borrow
+    ///
+    /// Opcode for 97, 90, 91, 92, 93, 94, 95
+    fn sub_a_n(&mut self, reg: Register) {
+        debug!("Instruction sub_a_n reg: {}", reg);
+
+        let value = match reg {
+            Register::A => self.a,
+            Register::B => self.b,
+            Register::C => self.c,
+            Register::D => self.d,
+            Register::E => self.e,
+            Register::H => self.h,
+            Register::L => self.l,
+            _ => panic!("Invalid register {}", reg),
+        };
+
+        let half_carry_flag = (self.a & 0x0f) < (value & 0x0f);
+        let (res, carry_flag) = self.a.overflowing_sub(value);
+
+        self.a = res;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(true);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(4);
+    }
+
+    /// Subtract (HL) from A
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Set
+    /// H Set if no borrow from bit 4
+    /// C Set if no borrow
+    ///
+    /// Opcode for 96
+    fn sub_a_hl(&mut self) {
+        debug!("Instruction sub_a_hl");
+
+        let addr = get_addr_from_registers(self.h, self.l);
+        let value = self.mmu.read_byte(addr);
+
+        let half_carry_flag = (self.a & 0x0f) < (value & 0x0f);
+        let (res, carry_flag) = self.a.overflowing_sub(value);
+
+        self.a = res;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(true);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(8);
+    }
+
+    /// Subtract d8 from A
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Set
+    /// H Set if no borrow from bit 4
+    /// C Set if no borrow
+    ///
+    /// Opcode for D6
+    fn sub_a_d8(&mut self) {
+        debug!("Instruction sub_a_d8");
+
+        let addr = self.pc;
+        let value = self.mmu.read_byte(addr);
+
+        let half_carry_flag = (self.a & 0x0f) < (value & 0x0f);
+        let (res, carry_flag) = self.a.overflowing_sub(value);
+
+        self.a = res;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(true);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_program_count(1);
+        self.add_clock(8);
+    }
+
+    pub fn exec(&mut self, opcode: u8) {
+        match opcode {
+            // 00
+            0x00 => todo!(),
+            0x01 => self.load_n_nn(Register::BC),
+            0x02 => self.load_nn_a(Register::BC),
+            0x03 => todo!(),
+            0x04 => todo!(),
+            0x05 => todo!(),
+            0x06 => self.load_nn_n(Register::B),
+            0x07 => todo!(),
+            0x08 => self.load_nn_sp(),
+            0x09 => todo!(),
+            0x0A => self.load_a_nn(Register::BC),
+            0x0B => todo!(),
+            0x0C => todo!(),
+            0x0D => todo!(),
+            0x0E => self.load_nn_n(Register::C),
+            0x0F => todo!(),
+            // 10
+            0x10 => todo!(),
+            0x11 => self.load_n_nn(Register::DE),
+            0x12 => self.load_n_nn(Register::DE),
+            0x13 => todo!(),
+            0x14 => todo!(),
+            0x15 => todo!(),
+            0x16 => self.load_nn_n(Register::D),
+            0x17 => todo!(),
+            0x18 => todo!(),
+            0x19 => todo!(),
+            0x1A => self.load_a_nn(Register::DE),
+            0x1B => todo!(),
+            0x1C => todo!(),
+            0x1D => todo!(),
+            0x1E => self.load_nn_n(Register::E),
+            0x1F => todo!(),
+            // 20
+            0x20 => todo!(),
+            0x21 => self.load_n_nn(Register::HL),
+            0x22 => self.load_hli_a(),
+            0x23 => todo!(),
+            0x24 => todo!(),
+            0x25 => todo!(),
+            0x26 => self.load_nn_n(Register::H),
+            0x27 => todo!(),
+            0x28 => todo!(),
+            0x29 => todo!(),
+            0x2A => self.load_a_hli(),
+            0x2B => todo!(),
+            0x2C => todo!(),
+            0x2D => todo!(),
+            0x2E => self.load_nn_n(Register::L),
+            0x2F => todo!(),
+            // 30
+            0x30 => todo!(),
+            0x31 => self.load_n_nn(Register::SP),
+            0x32 => self.load_hld_a(),
+            0x33 => todo!(),
+            0x34 => todo!(),
+            0x35 => todo!(),
+            0x36 => self.load_hl_imm(),
+            0x37 => todo!(),
+            0x38 => todo!(),
+            0x39 => todo!(),
+            0x3A => self.load_a_hld(),
+            0x3B => todo!(),
+            0x3C => todo!(),
+            0x3D => todo!(),
+            0x3E => self.load_a_d8(),
+            0x3F => todo!(),
+            // 40
+            0x40 => self.load_r1_r2(Register::B, Register::B),
+            0x41 => self.load_r1_r2(Register::B, Register::C),
+            0x42 => self.load_r1_r2(Register::B, Register::D),
+            0x43 => self.load_r1_r2(Register::B, Register::E),
+            0x44 => self.load_r1_r2(Register::B, Register::H),
+            0x45 => self.load_r1_r2(Register::B, Register::L),
+            0x46 => self.load_r1_hl(Register::B),
+            0x47 => self.load_r1_r2(Register::B, Register::A),
+            0x48 => self.load_r1_r2(Register::C, Register::B),
+            0x49 => self.load_r1_r2(Register::C, Register::C),
+            0x4A => self.load_r1_r2(Register::C, Register::D),
+            0x4B => self.load_r1_r2(Register::C, Register::E),
+            0x4C => self.load_r1_r2(Register::C, Register::H),
+            0x4D => self.load_r1_r2(Register::C, Register::L),
+            0x4E => self.load_r1_hl(Register::C),
+            0x4F => self.load_r1_r2(Register::C, Register::A),
+            // 50
+            0x50 => self.load_r1_r2(Register::D, Register::B),
+            0x51 => self.load_r1_r2(Register::D, Register::C),
+            0x52 => self.load_r1_r2(Register::D, Register::D),
+            0x53 => self.load_r1_r2(Register::D, Register::E),
+            0x54 => self.load_r1_r2(Register::D, Register::H),
+            0x55 => self.load_r1_r2(Register::D, Register::L),
+            0x56 => self.load_r1_hl(Register::D),
+            0x57 => self.load_r1_r2(Register::D, Register::A),
+            0x58 => self.load_r1_r2(Register::E, Register::B),
+            0x59 => self.load_r1_r2(Register::E, Register::C),
+            0x5A => self.load_r1_r2(Register::E, Register::D),
+            0x5B => self.load_r1_r2(Register::E, Register::E),
+            0x5C => self.load_r1_r2(Register::E, Register::H),
+            0x5D => self.load_r1_r2(Register::E, Register::L),
+            0x5E => self.load_r1_hl(Register::E),
+            0x5F => self.load_r1_r2(Register::E, Register::A),
+            // 60
+            0x60 => self.load_r1_r2(Register::H, Register::B),
+            0x61 => self.load_r1_r2(Register::H, Register::C),
+            0x62 => self.load_r1_r2(Register::H, Register::D),
+            0x63 => self.load_r1_r2(Register::H, Register::E),
+            0x64 => self.load_r1_r2(Register::H, Register::H),
+            0x65 => self.load_r1_r2(Register::H, Register::L),
+            0x66 => self.load_r1_hl(Register::H),
+            0x67 => self.load_r1_r2(Register::H, Register::A),
+            0x68 => self.load_r1_r2(Register::L, Register::B),
+            0x69 => self.load_r1_r2(Register::L, Register::C),
+            0x6A => self.load_r1_r2(Register::L, Register::D),
+            0x6B => self.load_r1_r2(Register::L, Register::E),
+            0x6C => self.load_r1_r2(Register::L, Register::H),
+            0x6D => self.load_r1_r2(Register::L, Register::L),
+            0x6E => self.load_r1_hl(Register::L),
+            0x6F => self.load_r1_r2(Register::L, Register::A),
+            // 70
+            0x70 => self.load_hl_r1(Register::B),
+            0x71 => self.load_hl_r1(Register::C),
+            0x72 => self.load_hl_r1(Register::D),
+            0x73 => self.load_hl_r1(Register::E),
+            0x74 => self.load_hl_r1(Register::H),
+            0x75 => self.load_hl_r1(Register::L),
+            0x76 => todo!(),
+            0x77 => self.load_hl_r1(Register::A),
+            0x78 => self.load_r1_r2(Register::A, Register::B),
+            0x79 => self.load_r1_r2(Register::A, Register::C),
+            0x7A => self.load_r1_r2(Register::A, Register::D),
+            0x7B => self.load_r1_r2(Register::A, Register::E),
+            0x7C => self.load_r1_r2(Register::A, Register::H),
+            0x7D => self.load_r1_r2(Register::A, Register::L),
+            0x7E => self.load_r1_hl(Register::A),
+            0x7F => self.load_r1_r2(Register::A, Register::A),
+            // 80
+            0x80 => self.add_a_r(Register::B),
+            0x81 => self.add_a_r(Register::C),
+            0x82 => self.add_a_r(Register::D),
+            0x83 => self.add_a_r(Register::E),
+            0x84 => self.add_a_r(Register::H),
+            0x85 => self.add_a_r(Register::L),
+            0x86 => self.add_a_hl(),
+            0x87 => self.add_a_r(Register::A),
+            0x88 => self.adc_a_n(Register::B),
+            0x89 => self.adc_a_n(Register::C),
+            0x8A => self.adc_a_n(Register::D),
+            0x8B => self.adc_a_n(Register::E),
+            0x8C => self.adc_a_n(Register::H),
+            0x8D => self.adc_a_n(Register::L),
+            0x8E => self.adc_a_hl(),
+            0x8F => self.adc_a_n(Register::A),
+            // 90
+            0x90 => self.sub_a_n(Register::B),
+            0x91 => self.sub_a_n(Register::C),
+            0x92 => self.sub_a_n(Register::D),
+            0x93 => self.sub_a_n(Register::E),
+            0x94 => self.sub_a_n(Register::H),
+            0x95 => self.sub_a_n(Register::L),
+            0x96 => self.sub_a_hl(),
+            0x97 => self.sub_a_n(Register::A),
+            0x98 => todo!(),
+            0x99 => todo!(),
+            0x9A => todo!(),
+            0x9B => todo!(),
+            0x9C => todo!(),
+            0x9D => todo!(),
+            0x9E => todo!(),
+            0x9F => todo!(),
+            // A0
+            0xA0 => todo!(),
+            0xA1 => todo!(),
+            0xA2 => todo!(),
+            0xA3 => todo!(),
+            0xA4 => todo!(),
+            0xA5 => todo!(),
+            0xA6 => todo!(),
+            0xA7 => todo!(),
+            0xA8 => todo!(),
+            0xA9 => todo!(),
+            0xAA => todo!(),
+            0xAB => todo!(),
+            0xAC => todo!(),
+            0xAD => todo!(),
+            0xAE => todo!(),
+            0xAF => todo!(),
+            // B0
+            0xB0 => todo!(),
+            0xB1 => todo!(),
+            0xB2 => todo!(),
+            0xB3 => todo!(),
+            0xB4 => todo!(),
+            0xB5 => todo!(),
+            0xB6 => todo!(),
+            0xB7 => todo!(),
+            0xB8 => todo!(),
+            0xB9 => todo!(),
+            0xBA => todo!(),
+            0xBB => todo!(),
+            0xBC => todo!(),
+            0xBD => todo!(),
+            0xBE => todo!(),
+            0xBF => todo!(),
+            // C0
+            0xC0 => todo!(),
+            0xC1 => self.pop_nn(Register::B, Register::C),
+            0xC2 => todo!(),
+            0xC3 => todo!(),
+            0xC4 => todo!(),
+            0xC5 => self.push_nn(Register::B, Register::C),
+            0xC6 => self.add_a_d8(),
+            0xC7 => todo!(),
+            0xC8 => todo!(),
+            0xC9 => todo!(),
+            0xCA => todo!(),
+            0xCB => todo!(),
+            0xCC => todo!(),
+            0xCD => todo!(),
+            0xCE => todo!(),
+            0xCF => todo!(),
+            // D0
+            0xD0 => todo!(),
+            0xD1 => self.pop_nn(Register::D, Register::E),
+            0xD2 => todo!(),
+            0xD3 => todo!(),
+            0xD4 => todo!(),
+            0xD5 => self.push_nn(Register::D, Register::E),
+            0xD6 => self.sub_a_d8(),
+            0xD7 => todo!(),
+            0xD8 => todo!(),
+            0xD9 => todo!(),
+            0xDA => todo!(),
+            0xDB => todo!(),
+            0xDC => todo!(),
+            0xDD => todo!(),
+            0xDE => todo!(),
+            0xDF => todo!(),
+            // E0
+            0xE0 => self.load_n_a(),
+            0xE1 => self.pop_nn(Register::H, Register::L),
+            0xE2 => self.load_c_a(),
+            0xE3 => todo!(),
+            0xE4 => todo!(),
+            0xE5 => self.push_nn(Register::H, Register::L),
+            0xE6 => todo!(),
+            0xE7 => todo!(),
+            0xE8 => todo!(),
+            0xE9 => todo!(),
+            0xEA => self.load_imm_a(),
+            0xEB => todo!(),
+            0xEC => todo!(),
+            0xED => todo!(),
+            0xEE => todo!(),
+            0xEF => todo!(),
+            // F0
+            0xF0 => self.load_a_n(),
+            0xF1 => self.pop_nn(Register::A, Register::F),
+            0xF2 => self.load_a_c(),
+            0xF3 => todo!(),
+            0xF4 => todo!(),
+            0xF5 => self.push_nn(Register::A, Register::F),
+            0xF6 => todo!(),
+            0xF7 => todo!(),
+            0xF8 => self.load_sp_n(),
+            0xF9 => self.load_sp_hl(),
+            0xFA => self.load_a_imm(),
+            0xFB => todo!(),
+            0xFC => todo!(),
+            0xFD => todo!(),
+            0xFE => todo!(),
+            0xFF => todo!(),
+        }
     }
 
     fn add_program_count(&mut self, count: u16) {
