@@ -953,6 +953,88 @@ impl Cpu {
         self.add_program_count(1);
         self.add_clock(8);
     }
+
+    /// And n with A, result in A
+    /// n = A, B, C, D, E, H, L
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Set
+    /// C Reset
+    ///
+    /// Opcode for A7, A0, A1, A2, A3, A4, A5
+    fn and_r8(&mut self, reg: Register) {
+        debug!("Instruction and_r8 reg: {}", reg);
+
+        let value = match reg {
+            Register::A => self.a,
+            Register::B => self.b,
+            Register::C => self.c,
+            Register::D => self.d,
+            Register::E => self.e,
+            Register::H => self.h,
+            Register::L => self.l,
+            _ => panic!("Invalid register {}", reg),
+        };
+
+        self.a &= value;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(true);
+        self.set_carry_flag(false);
+
+        self.add_clock(4);
+    }
+
+    /// And (HL) with A, result in A
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Set
+    /// C Reset
+    ///
+    /// Opcode for A6
+    fn and_hl(&mut self) {
+        let addr = get_addr_from_registers(self.h, self.l);
+        let value = self.mmu.read_byte(addr);
+
+        self.a &= value;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(true);
+        self.set_carry_flag(false);
+
+        self.add_clock(8);
+    }
+
+    /// And d8 with A, result in A
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Set
+    /// C Reset
+    ///
+    /// Opcode for E6
+    fn and_d8(&mut self) {
+        let addr = self.pc;
+        let value = self.mmu.read_byte(addr);
+
+        self.a &= value;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(true);
+        self.set_carry_flag(false);
+
+        self.add_program_count(1);
+        self.add_clock(8);
+    }
+
     pub fn exec(&mut self, opcode: u8) {
         match opcode {
             // 00
@@ -1126,14 +1208,14 @@ impl Cpu {
             0x9E => self.sbc_a_hl(),
             0x9F => self.sbc_a_n(Register::A),
             // A0
-            0xA0 => todo!(),
-            0xA1 => todo!(),
-            0xA2 => todo!(),
-            0xA3 => todo!(),
-            0xA4 => todo!(),
-            0xA5 => todo!(),
-            0xA6 => todo!(),
-            0xA7 => todo!(),
+            0xA0 => self.and_r8(Register::B),
+            0xA1 => self.and_r8(Register::C),
+            0xA2 => self.and_r8(Register::D),
+            0xA3 => self.and_r8(Register::E),
+            0xA4 => self.and_r8(Register::H),
+            0xA5 => self.and_r8(Register::L),
+            0xA6 => self.and_hl(),
+            0xA7 => self.and_r8(Register::A),
             0xA8 => todo!(),
             0xA9 => todo!(),
             0xAA => todo!(),
@@ -1200,7 +1282,7 @@ impl Cpu {
             0xE3 => todo!(),
             0xE4 => todo!(),
             0xE5 => self.push_nn(Register::H, Register::L),
-            0xE6 => todo!(),
+            0xE6 => self.and_d8(),
             0xE7 => todo!(),
             0xE8 => todo!(),
             0xE9 => todo!(),
