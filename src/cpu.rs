@@ -1677,6 +1677,16 @@ impl Cpu {
         if self.ime {
             self.halt = true;
         }
+
+        self.add_clock(4);
+    }
+
+    /// Stop instruction
+    /// Opcode for 10
+    fn stop(&mut self) {
+        debug!("Instruction stop");
+
+        self.add_clock(4);
     }
 
     pub fn exec(&mut self, opcode: u8) {
@@ -1699,7 +1709,7 @@ impl Cpu {
             0x0E => self.load_nn_n(Register::C),
             0x0F => todo!(),
             // 10
-            0x10 => todo!(),
+            0x10 => self.stop(),
             0x11 => self.load_n_nn(Register::DE),
             0x12 => self.load_n_nn(Register::DE),
             0x13 => self.inc_r16(Register::DE),
