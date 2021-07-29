@@ -1525,6 +1525,7 @@ impl Cpu {
     ///
     /// Opcode for 0B, 1B, 2B, 3B
     fn dec_r16(&mut self, reg: Register) {
+        debug!("Instruction dec_r16 reg: {}", reg);
         let (mut high_value, mut low_value) = match reg {
             Register::BC => (self.b, self.c),
             Register::DE => (self.d, self.e),
@@ -1556,6 +1557,45 @@ impl Cpu {
         }
 
         self.add_clock(8);
+    }
+
+    /// Decimal adjust register A
+    ///
+    /// Flag Affected
+    /// Z Set if register A is zero
+    /// N Not affected
+    /// H Reset
+    /// C Set or reset according to operation.
+    ///
+    /// Opcode for 27
+    fn daa(&mut self) {
+        debug!("Instruction daa");
+
+        let mut a = self.a;
+
+        if !self.subtraction_flag {
+            if self.carry_flag || a > 0x99 {
+                a = a.wrapping_add(0x60);
+                self.set_carry_flag(true);
+            }
+            if self.half_carry_flag || a & 0x0f > 0x09 {
+                a = a.wrapping_add(0x06);
+            }
+        } else {
+            if self.carry_flag {
+                a = a.wrapping_sub(0x60);
+            }
+            if self.half_carry_flag {
+                a = a.wrapping_sub(0x06)
+            }
+        }
+
+        self.a = a;
+
+        self.set_zero_flag(a == 0);
+        self.set_half_carry_flag(false);
+
+        self.add_clock(4);
     }
 
     pub fn exec(&mut self, opcode: u8) {
@@ -1602,7 +1642,7 @@ impl Cpu {
             0x24 => self.inc_r8(Register::H),
             0x25 => self.dec_r8(Register::H),
             0x26 => self.load_nn_n(Register::H),
-            0x27 => todo!(),
+            0x27 => self.daa(),
             0x28 => todo!(),
             0x29 => self.add_hl_n(Register::HL),
             0x2A => self.load_a_hli(),
