@@ -1689,6 +1689,20 @@ impl Cpu {
         self.add_clock(4);
     }
 
+    /// DI
+    ///
+    /// Flag Affected
+    /// None
+    ///
+    /// Opcode for F3
+    fn DI(&mut self) {
+        debug!("Instruction DI");
+
+        self.ime = false;
+
+        self.add_clock(4);
+    }
+
     pub fn exec(&mut self, opcode: u8) {
         match opcode {
             // 00
@@ -1950,7 +1964,7 @@ impl Cpu {
             0xF0 => self.load_a_n(),
             0xF1 => self.pop_nn(Register::A, Register::F),
             0xF2 => self.load_a_c(),
-            0xF3 => todo!(),
+            0xF3 => self.di(),
             0xF4 => todo!(),
             0xF5 => self.push_nn(Register::A, Register::F),
             0xF6 => self.or_d8(),
