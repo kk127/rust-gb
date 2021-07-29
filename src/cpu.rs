@@ -1618,10 +1618,57 @@ impl Cpu {
         self.add_clock(4);
     }
 
+    /// Complement carry falg
+    ///
+    /// Flag Affected
+    /// Z Not affected
+    /// N Reset
+    /// H Reset
+    /// C Complemented
+    ///
+    /// Opcode for 3F
+    fn ccf(&mut self) {
+        debug!("Instruction ccf");
+
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(!self.carry_flag);
+
+        self.add_clock(4);
+    }
+
+    /// Set carry flag
+    ///
+    /// Flag Affected
+    /// Z Not affected
+    /// N Reset
+    /// H Reset
+    /// C Set
+    ///
+    /// Opcode for 37
+    fn scf(&mut self) {
+        debug!("Instruction scf");
+
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(true);
+
+        self.add_clock(4);
+    }
+
+    /// No operation
+    ///
+    /// Opcode for 00
+    fn nop(&mut self) {
+        debug!("Instruction nop");
+
+        self.add_clock(4);
+    }
+
     pub fn exec(&mut self, opcode: u8) {
         match opcode {
             // 00
-            0x00 => todo!(),
+            0x00 => self.nop(),
             0x01 => self.load_n_nn(Register::BC),
             0x02 => self.load_nn_a(Register::BC),
             0x03 => self.inc_r16(Register::BC),
@@ -1679,7 +1726,7 @@ impl Cpu {
             0x34 => self.inc_hl(),
             0x35 => self.dec_hl(),
             0x36 => self.load_hl_imm(),
-            0x37 => todo!(),
+            0x37 => self.scf(),
             0x38 => todo!(),
             0x39 => self.add_hl_n(Register::SP),
             0x3A => self.load_a_hld(),
@@ -1687,7 +1734,7 @@ impl Cpu {
             0x3C => self.inc_r8(Register::A),
             0x3D => self.dec_r8(Register::A),
             0x3E => self.load_a_d8(),
-            0x3F => todo!(),
+            0x3F => self.ccf(),
             // 40
             0x40 => self.load_r1_r2(Register::B, Register::B),
             0x41 => self.load_r1_r2(Register::B, Register::C),
