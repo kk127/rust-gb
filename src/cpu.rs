@@ -1717,6 +1717,31 @@ impl Cpu {
         self.add_clock(4);
     }
 
+    /// Rotate A left. Old bit 7 to carry flag
+    ///
+    /// Affected Flag:
+    /// Z Reset
+    /// N Reset
+    /// H Reset
+    /// C set if carry flag
+    ///
+    /// Opcode for 07
+    fn rlca(&mut self) {
+        debug!("Instruction rlca");
+
+        let a = self.a;
+        let carry_flag = ((a >> 7) & 0x01) == 0x01;
+
+        self.a = a.rotate_left(1);
+
+        self.set_zero_flag(false);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(4);
+    }
+
     pub fn exec(&mut self, opcode: u8) {
         match opcode {
             // 00
@@ -1727,7 +1752,7 @@ impl Cpu {
             0x04 => self.inc_r8(Register::B),
             0x05 => self.dec_r8(Register::B),
             0x06 => self.load_nn_n(Register::B),
-            0x07 => todo!(),
+            0x07 => self.rlca(),
             0x08 => self.load_nn_sp(),
             0x09 => self.add_hl_n(Register::BC),
             0x0A => self.load_a_nn(Register::BC),
