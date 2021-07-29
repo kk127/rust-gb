@@ -1695,10 +1695,24 @@ impl Cpu {
     /// None
     ///
     /// Opcode for F3
-    fn DI(&mut self) {
+    fn di(&mut self) {
         debug!("Instruction DI");
 
         self.ime = false;
+
+        self.add_clock(4);
+    }
+
+    // EI
+    ///
+    /// Flag Affected
+    /// None
+    ///
+    /// Opcode for FB
+    fn ei(&mut self) {
+        debug!("Instruction ei");
+
+        self.ime = true;
 
         self.add_clock(4);
     }
@@ -1972,7 +1986,7 @@ impl Cpu {
             0xF8 => self.load_sp_n(),
             0xF9 => self.load_sp_hl(),
             0xFA => self.load_a_imm(),
-            0xFB => todo!(),
+            0xFB => self.ei(),
             0xFC => todo!(),
             0xFD => todo!(),
             0xFE => self.cp_d8(),
