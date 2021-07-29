@@ -1598,6 +1598,26 @@ impl Cpu {
         self.add_clock(4);
     }
 
+    /// Complement A register. (Flip all bits)
+    ///
+    /// Flag Affected
+    /// Z Not affected
+    /// N Set
+    /// H Set
+    /// C Not Affected
+    ///
+    /// Opcode for 2F
+    fn cpl(&mut self) {
+        debug!("Instruction cpl");
+
+        self.a = !self.a;
+
+        self.set_subtraction_flag(true);
+        self.set_half_carry_flag(true);
+
+        self.add_clock(4);
+    }
+
     pub fn exec(&mut self, opcode: u8) {
         match opcode {
             // 00
@@ -1650,7 +1670,7 @@ impl Cpu {
             0x2C => self.inc_r8(Register::L),
             0x2D => self.dec_r8(Register::L),
             0x2E => self.load_nn_n(Register::L),
-            0x2F => todo!(),
+            0x2F => self.cpl(),
             // 30
             0x30 => todo!(),
             0x31 => self.load_n_nn(Register::SP),
