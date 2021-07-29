@@ -1517,6 +1517,47 @@ impl Cpu {
         self.add_clock(8);
     }
 
+    /// Decrement register nn
+    /// nn = BC, DE, HL, SP
+    ///
+    /// Affected Flag
+    /// None
+    ///
+    /// Opcode for 0B, 1B, 2B, 3B
+    fn dec_r16(&mut self, reg: Register) {
+        let (mut high_value, mut low_value) = match reg {
+            Register::BC => (self.b, self.c),
+            Register::DE => (self.d, self.e),
+            Register::HL => (self.h, self.l),
+            Register::SP => ((self.sp >> 8) as u8, self.sp as u8),
+            _ => panic!("Invalid register {}", reg),
+        };
+
+        low_value = low_value.wrapping_sub(1);
+        if low_value == 0xff {
+            high_value = high_value.wrapping_sub(1);
+        }
+
+        match reg {
+            Register::BC => {
+                self.b = high_value;
+                self.c = low_value;
+            }
+            Register::DE => {
+                self.d = high_value;
+                self.e = low_value;
+            }
+            Register::HL => {
+                self.h = high_value;
+                self.l = low_value;
+            }
+            Register::SP => self.sp = (high_value as u16) << 8 + low_value as u16,
+            _ => panic!("Invalid register {}", reg),
+        }
+
+        self.add_clock(8);
+    }
+
     pub fn exec(&mut self, opcode: u8) {
         match opcode {
             // 00
@@ -1531,7 +1572,7 @@ impl Cpu {
             0x08 => self.load_nn_sp(),
             0x09 => self.add_hl_n(Register::BC),
             0x0A => self.load_a_nn(Register::BC),
-            0x0B => todo!(),
+            0x0B => self.dec_r16(Register::BC),
             0x0C => self.inc_r8(Register::C),
             0x0D => self.dec_r8(Register::C),
             0x0E => self.load_nn_n(Register::C),
@@ -1548,7 +1589,7 @@ impl Cpu {
             0x18 => todo!(),
             0x19 => self.add_hl_n(Register::DE),
             0x1A => self.load_a_nn(Register::DE),
-            0x1B => todo!(),
+            0x1B => self.dec_r16(Register::DE),
             0x1C => self.inc_r8(Register::E),
             0x1D => self.dec_r8(Register::E),
             0x1E => self.load_nn_n(Register::E),
@@ -1565,7 +1606,7 @@ impl Cpu {
             0x28 => todo!(),
             0x29 => self.add_hl_n(Register::HL),
             0x2A => self.load_a_hli(),
-            0x2B => todo!(),
+            0x2B => self.dec_r16(Register::HL),
             0x2C => self.inc_r8(Register::L),
             0x2D => self.dec_r8(Register::L),
             0x2E => self.load_nn_n(Register::L),
@@ -1582,7 +1623,7 @@ impl Cpu {
             0x38 => todo!(),
             0x39 => self.add_hl_n(Register::SP),
             0x3A => self.load_a_hld(),
-            0x3B => todo!(),
+            0x3B => self.dec_r16(Register::SP),
             0x3C => self.inc_r8(Register::A),
             0x3D => self.dec_r8(Register::A),
             0x3E => self.load_a_d8(),
