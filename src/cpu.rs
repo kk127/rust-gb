@@ -23,6 +23,8 @@ pub struct Cpu {
 
     mmu: Mmu,
     clock: u32,
+    ime: bool,
+    halt: bool,
 }
 
 impl Cpu {
@@ -44,6 +46,8 @@ impl Cpu {
 
             mmu: Mmu::new(),
             clock: 0,
+            ime: false,
+            halt: false,
         }
     }
 
@@ -1665,6 +1669,16 @@ impl Cpu {
         self.add_clock(4);
     }
 
+    /// Halt instruction
+    /// Opcode for 76
+    fn halt(&mut self) {
+        debug!("Instruction halt");
+
+        if self.ime {
+            self.halt = true;
+        }
+    }
+
     pub fn exec(&mut self, opcode: u8) {
         match opcode {
             // 00
@@ -1793,7 +1807,7 @@ impl Cpu {
             0x73 => self.load_hl_r1(Register::E),
             0x74 => self.load_hl_r1(Register::H),
             0x75 => self.load_hl_r1(Register::L),
-            0x76 => todo!(),
+            0x76 => self.halt(),
             0x77 => self.load_hl_r1(Register::A),
             0x78 => self.load_r1_r2(Register::A, Register::B),
             0x79 => self.load_r1_r2(Register::A, Register::C),
