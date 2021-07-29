@@ -1,3 +1,5 @@
+use std::char::REPLACEMENT_CHARACTER;
+
 use log::{debug, info};
 
 use crate::mmu::Mmu;
@@ -1035,74 +1037,554 @@ impl Cpu {
         self.add_clock(8);
     }
 
+    /// Or r8 with register A, result in Affected
+    /// r8 = A, B, C, D, E, H, L
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Reset
+    /// H ReSet
+    /// C Reset
+    ///
+    /// Opcode for B7, B0, B1, B2, B3, B4, B5
+    fn or_r8(&mut self, reg: Register) {
+        debug!("Instruction or_r8 reg: {}", reg);
+        let value = match reg {
+            Register::A => self.a,
+            Register::B => self.b,
+            Register::C => self.c,
+            Register::D => self.d,
+            Register::E => self.e,
+            Register::H => self.h,
+            Register::L => self.l,
+            _ => panic!("Invalid register {}", reg),
+        };
+
+        self.a |= value;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(false);
+
+        self.add_clock(4);
+    }
+
+    /// Or (HL) with register A, result in Affected
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Reset
+    /// H ReSet
+    /// C Reset
+    ///
+    /// Opcode for B6
+    fn or_hl(&mut self) {
+        debug!("Instruction or_hl");
+        let addr = get_addr_from_registers(self.h, self.l);
+        let value = self.mmu.read_byte(addr);
+
+        self.a |= value;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(false);
+
+        self.add_clock(8);
+    }
+
+    /// Or d8 with register A, result in Affected
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Reset
+    /// H ReSet
+    /// C Reset
+    ///
+    /// Opcode for F6
+    fn or_d8(&mut self) {
+        debug!("Instruction or_d8");
+        let addr = self.pc;
+        let value = self.mmu.read_byte(addr);
+
+        self.a |= value;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(false);
+
+        self.add_program_count(1);
+        self.add_clock(8);
+    }
+
+    /// Xor r8 with register A, result in A
+    /// r8 = A, B, C, D, E, H, L
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Reset
+    /// H ReSet
+    /// C Reset
+    ///
+    /// Opcode for AF, A8, A9, AA, AB, AC, AD
+    fn xor_r8(&mut self, reg: Register) {
+        debug!("Instruction xor_r8 reg: {}", reg);
+        let value = match reg {
+            Register::A => self.a,
+            Register::B => self.b,
+            Register::C => self.c,
+            Register::D => self.d,
+            Register::E => self.e,
+            Register::H => self.h,
+            Register::L => self.l,
+            _ => panic!("Invalid register {}", reg),
+        };
+
+        self.a ^= value;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(false);
+
+        self.add_clock(4);
+    }
+
+    /// Xor (HL) with register A, result in A
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Reset
+    /// H ReSet
+    /// C Reset
+    ///
+    /// Opcode for AE
+    fn xor_hl(&mut self) {
+        debug!("Instruction xor_hl");
+        let addr = get_addr_from_registers(self.h, self.l);
+        let value = self.mmu.read_byte(addr);
+
+        self.a ^= value;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(false);
+
+        self.add_clock(8);
+    }
+
+    /// Xor d8 with register A, result in A
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Reset
+    /// H ReSet
+    /// C Reset
+    ///
+    /// Opcode for AE
+    fn xor_d8(&mut self) {
+        debug!("Instruction xor_d8");
+        let addr = self.pc;
+        let value = self.mmu.read_byte(addr);
+
+        self.a ^= value;
+
+        self.set_zero_flag(self.a == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(false);
+
+        self.add_program_count(1);
+        self.add_clock(8);
+    }
+
+    /// compare A with r8. Result are thrown away
+    /// r8 = A, B, C, D, E, H, L
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero (A == r8)
+    /// N Set
+    /// H Set if no borrow from bit 4
+    /// C Set for no borrow (set if A < r8)
+    ///
+    /// Opcode for BF, B8, B9, BA, BB, BC, BD
+    fn cp_r8(&mut self, reg: Register) {
+        debug!("Instruction cp_r8 reg: {}", reg);
+        let value = match reg {
+            Register::A => self.a,
+            Register::B => self.b,
+            Register::C => self.c,
+            Register::D => self.d,
+            Register::E => self.e,
+            Register::H => self.h,
+            Register::L => self.l,
+            _ => panic!("Invalid register {}", reg),
+        };
+
+        let half_carry_flag = (self.a & 0x0f) < (value & 0x0f);
+        let carry_flag = self.a < value;
+
+        self.set_zero_flag(self.a == value);
+        self.set_subtraction_flag(true);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(4);
+    }
+
+    /// compare A with (HL). Result are thrown away
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero (A == r8)
+    /// N Set
+    /// H Set if no borrow from bit 4
+    /// C Set for no borrow (set if A < r8)
+    ///
+    /// Opcode for BE
+    fn cp_hl(&mut self) {
+        debug!("Instruction cp_hl");
+        let addr = get_addr_from_registers(self.h, self.l);
+        let value = self.mmu.read_byte(addr);
+
+        let half_carry_flag = (self.a & 0x0f) < (value & 0x0f);
+        let carry_flag = self.a < value;
+
+        self.set_zero_flag(self.a == value);
+        self.set_subtraction_flag(true);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(8);
+    }
+
+    /// compare A with d8. Result are thrown away
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero (A == r8)
+    /// N Set
+    /// H Set if no borrow from bit 4
+    /// C Set for no borrow (set if A < r8)
+    ///
+    /// Opcode for FE
+    fn cp_d8(&mut self) {
+        debug!("Instruction cp_d8");
+        let addr = self.pc;
+        let value = self.mmu.read_byte(addr);
+
+        let half_carry_flag = (self.a & 0x0f) < (value & 0x0f);
+        let carry_flag = self.a < value;
+
+        self.set_zero_flag(self.a == value);
+        self.set_subtraction_flag(true);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_program_count(1);
+        self.add_clock(8);
+    }
+
+    /// INcrement register n
+    /// n = A, B, C, D, E, H, L
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Set if carry form bit 3
+    /// C Not affected
+    ///
+    /// Opcode for 3C, 04, 0C, 14, 1C, 24, 2C
+    fn inc_r8(&mut self, reg: Register) {
+        debug!("Instruction inc_r8 reg: {}", reg);
+        let value = match reg {
+            Register::A => self.a.wrapping_add(1),
+            Register::B => self.b.wrapping_add(1),
+            Register::C => self.c.wrapping_add(1),
+            Register::D => self.d.wrapping_add(1),
+            Register::E => self.e.wrapping_add(1),
+            Register::H => self.h.wrapping_add(1),
+            Register::L => self.l.wrapping_add(1),
+            _ => panic!("Invalid register {}", reg),
+        };
+
+        let half_carry_flag = (value.wrapping_sub(1) & 0x0f) == 0x0f;
+
+        match reg {
+            Register::A => self.a = value,
+            Register::B => self.b = value,
+            Register::C => self.c = value,
+            Register::D => self.d = value,
+            Register::E => self.e = value,
+            Register::H => self.h = value,
+            Register::L => self.l = value,
+            _ => panic!("Invalid register {}", reg),
+        }
+
+        self.set_zero_flag(value == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(half_carry_flag);
+
+        self.add_clock(4);
+    }
+
+    /// INcrement (HL)
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Set if carry form bit 3
+    /// C Not affected
+    ///
+    /// Opcode for 34
+    fn inc_hl(&mut self) {
+        debug!("Instruction inc_hl");
+        let addr = get_addr_from_registers(self.h, self.l);
+        let mut value = self.mmu.read_byte(addr);
+
+        value = value.wrapping_add(1);
+        self.mmu.write_byte(addr, value);
+
+        let half_carry_flag = (value.wrapping_sub(1) & 0x0f) == 0x0f;
+
+        self.set_zero_flag(value == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(half_carry_flag);
+
+        self.add_clock(12);
+    }
+
+    /// Decrement register n
+    /// n = A, B, C, D, E, H, L
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Set
+    /// H Set if no borrow from bit 4
+    /// C Not affected
+    ///
+    /// Opcode for 3D, 05, 0D, 15, 1D, 25, 2D
+    fn dec_r8(&mut self, reg: Register) {
+        debug!("dec_r8 reg {}", reg);
+        let value = match reg {
+            Register::A => self.a.wrapping_sub(1),
+            Register::B => self.b.wrapping_sub(1),
+            Register::C => self.c.wrapping_sub(1),
+            Register::D => self.d.wrapping_sub(1),
+            Register::E => self.e.wrapping_sub(1),
+            Register::H => self.h.wrapping_sub(1),
+            Register::L => self.l.wrapping_sub(1),
+            _ => panic!("Invalid register {}", reg),
+        };
+
+        let half_carry_flag = (value & 0x0f) == 0x0f;
+
+        self.set_zero_flag(value == 0);
+        self.set_subtraction_flag(true);
+        self.set_half_carry_flag(half_carry_flag);
+
+        self.add_clock(4);
+    }
+
+    /// Decrement (HL)
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Set
+    /// H Set if no borrow from bit 4
+    /// C Not affected
+    ///
+    /// Opcode for 35
+    fn dec_hl(&mut self) {
+        debug!("Instruction dec_hl");
+        let addr = get_addr_from_registers(self.h, self.l);
+        let mut value = self.mmu.read_byte(addr);
+
+        value = value.wrapping_sub(1);
+        self.mmu.write_byte(addr, value);
+
+        let half_carry_flag = (value & 0x0f) == 0x0f;
+
+        self.set_zero_flag(value == 0);
+        self.set_subtraction_flag(true);
+        self.set_half_carry_flag(half_carry_flag);
+
+        self.add_clock(12);
+    }
+
+    /// add n to HL
+    /// n = BC, DE, HL, SP
+    ///
+    /// Affected Flag:
+    /// Z Not affected
+    /// N Reset
+    /// H Set if carry from bit 11
+    /// C Set if carry from bit 15
+    ///
+    /// Opcode for 09, 19, 29, 39
+    fn add_hl_n(&mut self, reg: Register) {
+        debug!("Instruction add_hl_n reg: {}", reg);
+        let value = match reg {
+            Register::BC => ((self.b as u16) << 8) + (self.c as u16),
+            Register::DE => ((self.d as u16) << 8) + (self.e as u16),
+            Register::HL => ((self.h as u16) << 8) + (self.l as u16),
+            Register::SP => self.sp,
+            _ => panic!("Invalid register {}", reg),
+        };
+        let hl = ((self.h as u16) << 8) + (self.l as u16);
+
+        let half_carry_flag = (hl & 0x0fff) + (value & 0x0fff) > 0x0fff;
+        let (res, carry_flag) = hl.overflowing_add(value);
+
+        self.h = (res >> 8) as u8;
+        self.l = res as u8;
+
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(8);
+    }
+
+    /// Add n to SP
+    /// n = one byte signed immediate value
+    ///
+    /// Affected Flag:
+    /// Z Reset
+    /// N Reset
+    /// H Set or reset according to operation.
+    /// C Set or reset according to operation.
+    ///
+    /// Opcode for E8
+    fn add_sp_d8(&mut self) {
+        let addr = self.pc;
+        let value = self.mmu.read_byte(addr) as i8 as u16;
+
+        let half_carry_flag = (self.sp & 0x0f) + (value & 0x0f) > 0x0f;
+        let carry_flag = (self.sp & 0x00ff) + (value & 0x00ff) > 0x00ff;
+
+        self.sp = self.sp.wrapping_add(value);
+
+        self.set_zero_flag(false);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(half_carry_flag);
+        self.set_carry_flag(carry_flag);
+
+        self.add_program_count(1);
+        self.add_clock(16);
+    }
+
+    /// Increment register nn
+    /// nn = BC, DE, HL, SP
+    ///
+    /// Affected Flag
+    /// None
+    ///
+    /// Opcode for 03, 13, 23, 33
+    fn inc_r16(&mut self, reg: Register) {
+        debug!("Instruction inc_r16 reg: {}", reg);
+        let (mut high_value, mut low_value) = match reg {
+            Register::BC => (self.b, self.c),
+            Register::DE => (self.d, self.e),
+            Register::HL => (self.h, self.l),
+            Register::SP => ((self.sp >> 8) as u8, self.sp as u8),
+            _ => panic!("Invalid register {}", reg),
+        };
+
+        low_value = low_value.wrapping_add(1);
+        if low_value == 0 {
+            high_value = high_value.wrapping_add(1);
+        }
+
+        match reg {
+            Register::BC => {
+                self.b = high_value;
+                self.c = low_value;
+            }
+            Register::DE => {
+                self.d = high_value;
+                self.e = low_value;
+            }
+            Register::HL => {
+                self.h = high_value;
+                self.l = low_value;
+            }
+            Register::SP => self.sp = (high_value as u16) << 8 + low_value as u16,
+            _ => panic!("Invalid register {}", reg),
+        }
+
+        self.add_clock(8);
+    }
+
     pub fn exec(&mut self, opcode: u8) {
         match opcode {
             // 00
             0x00 => todo!(),
             0x01 => self.load_n_nn(Register::BC),
             0x02 => self.load_nn_a(Register::BC),
-            0x03 => todo!(),
-            0x04 => todo!(),
-            0x05 => todo!(),
+            0x03 => self.inc_r16(Register::BC),
+            0x04 => self.inc_r8(Register::B),
+            0x05 => self.dec_r8(Register::B),
             0x06 => self.load_nn_n(Register::B),
             0x07 => todo!(),
             0x08 => self.load_nn_sp(),
-            0x09 => todo!(),
+            0x09 => self.add_hl_n(Register::BC),
             0x0A => self.load_a_nn(Register::BC),
             0x0B => todo!(),
-            0x0C => todo!(),
-            0x0D => todo!(),
+            0x0C => self.inc_r8(Register::C),
+            0x0D => self.dec_r8(Register::C),
             0x0E => self.load_nn_n(Register::C),
             0x0F => todo!(),
             // 10
             0x10 => todo!(),
             0x11 => self.load_n_nn(Register::DE),
             0x12 => self.load_n_nn(Register::DE),
-            0x13 => todo!(),
-            0x14 => todo!(),
-            0x15 => todo!(),
+            0x13 => self.inc_r16(Register::DE),
+            0x14 => self.inc_r8(Register::D),
+            0x15 => self.dec_r8(Register::D),
             0x16 => self.load_nn_n(Register::D),
             0x17 => todo!(),
             0x18 => todo!(),
-            0x19 => todo!(),
+            0x19 => self.add_hl_n(Register::DE),
             0x1A => self.load_a_nn(Register::DE),
             0x1B => todo!(),
-            0x1C => todo!(),
-            0x1D => todo!(),
+            0x1C => self.inc_r8(Register::E),
+            0x1D => self.dec_r8(Register::E),
             0x1E => self.load_nn_n(Register::E),
             0x1F => todo!(),
             // 20
             0x20 => todo!(),
             0x21 => self.load_n_nn(Register::HL),
             0x22 => self.load_hli_a(),
-            0x23 => todo!(),
-            0x24 => todo!(),
-            0x25 => todo!(),
+            0x23 => self.inc_r16(Register::HL),
+            0x24 => self.inc_r8(Register::H),
+            0x25 => self.dec_r8(Register::H),
             0x26 => self.load_nn_n(Register::H),
             0x27 => todo!(),
             0x28 => todo!(),
-            0x29 => todo!(),
+            0x29 => self.add_hl_n(Register::HL),
             0x2A => self.load_a_hli(),
             0x2B => todo!(),
-            0x2C => todo!(),
-            0x2D => todo!(),
+            0x2C => self.inc_r8(Register::L),
+            0x2D => self.dec_r8(Register::L),
             0x2E => self.load_nn_n(Register::L),
             0x2F => todo!(),
             // 30
             0x30 => todo!(),
             0x31 => self.load_n_nn(Register::SP),
             0x32 => self.load_hld_a(),
-            0x33 => todo!(),
-            0x34 => todo!(),
-            0x35 => todo!(),
+            0x33 => self.inc_r16(Register::SP),
+            0x34 => self.inc_hl(),
+            0x35 => self.dec_hl(),
             0x36 => self.load_hl_imm(),
             0x37 => todo!(),
             0x38 => todo!(),
-            0x39 => todo!(),
+            0x39 => self.add_hl_n(Register::SP),
             0x3A => self.load_a_hld(),
             0x3B => todo!(),
-            0x3C => todo!(),
-            0x3D => todo!(),
+            0x3C => self.inc_r8(Register::A),
+            0x3D => self.dec_r8(Register::A),
             0x3E => self.load_a_d8(),
             0x3F => todo!(),
             // 40
@@ -1216,31 +1698,31 @@ impl Cpu {
             0xA5 => self.and_r8(Register::L),
             0xA6 => self.and_hl(),
             0xA7 => self.and_r8(Register::A),
-            0xA8 => todo!(),
-            0xA9 => todo!(),
-            0xAA => todo!(),
-            0xAB => todo!(),
-            0xAC => todo!(),
-            0xAD => todo!(),
-            0xAE => todo!(),
-            0xAF => todo!(),
+            0xA8 => self.xor_r8(Register::B),
+            0xA9 => self.xor_r8(Register::C),
+            0xAA => self.xor_r8(Register::D),
+            0xAB => self.xor_r8(Register::E),
+            0xAC => self.xor_r8(Register::H),
+            0xAD => self.xor_r8(Register::L),
+            0xAE => self.xor_hl(),
+            0xAF => self.xor_r8(Register::A),
             // B0
-            0xB0 => todo!(),
-            0xB1 => todo!(),
-            0xB2 => todo!(),
-            0xB3 => todo!(),
-            0xB4 => todo!(),
-            0xB5 => todo!(),
-            0xB6 => todo!(),
-            0xB7 => todo!(),
-            0xB8 => todo!(),
-            0xB9 => todo!(),
-            0xBA => todo!(),
-            0xBB => todo!(),
-            0xBC => todo!(),
-            0xBD => todo!(),
-            0xBE => todo!(),
-            0xBF => todo!(),
+            0xB0 => self.or_r8(Register::B),
+            0xB1 => self.or_r8(Register::C),
+            0xB2 => self.or_r8(Register::D),
+            0xB3 => self.or_r8(Register::E),
+            0xB4 => self.or_r8(Register::H),
+            0xB5 => self.or_r8(Register::L),
+            0xB6 => self.or_hl(),
+            0xB7 => self.or_r8(Register::A),
+            0xB8 => self.cp_r8(Register::B),
+            0xB9 => self.cp_r8(Register::C),
+            0xBA => self.cp_r8(Register::D),
+            0xBB => self.cp_r8(Register::E),
+            0xBC => self.cp_r8(Register::H),
+            0xBD => self.cp_r8(Register::L),
+            0xBE => self.cp_hl(),
+            0xBF => self.cp_r8(Register::A),
             // C0
             0xC0 => todo!(),
             0xC1 => self.pop_nn(Register::B, Register::C),
@@ -1284,7 +1766,7 @@ impl Cpu {
             0xE5 => self.push_nn(Register::H, Register::L),
             0xE6 => self.and_d8(),
             0xE7 => todo!(),
-            0xE8 => todo!(),
+            0xE8 => self.add_sp_d8(),
             0xE9 => todo!(),
             0xEA => self.load_imm_a(),
             0xEB => todo!(),
@@ -1299,7 +1781,7 @@ impl Cpu {
             0xF3 => todo!(),
             0xF4 => todo!(),
             0xF5 => self.push_nn(Register::A, Register::F),
-            0xF6 => todo!(),
+            0xF6 => self.or_d8(),
             0xF7 => todo!(),
             0xF8 => self.load_sp_n(),
             0xF9 => self.load_sp_hl(),
@@ -1307,7 +1789,7 @@ impl Cpu {
             0xFB => todo!(),
             0xFC => todo!(),
             0xFD => todo!(),
-            0xFE => todo!(),
+            0xFE => self.cp_d8(),
             0xFF => todo!(),
         }
     }
