@@ -1,10 +1,29 @@
 use std::char::REPLACEMENT_CHARACTER;
+use std::fmt;
 
 use log::{debug, info};
 
 use crate::mmu::Mmu;
 use crate::register::Register;
 use crate::utils::get_addr_from_registers;
+
+#[derive(Clone, Copy)]
+enum CcFlag {
+    NZ,
+    Z,
+    NC,
+    C,
+}
+impl fmt::Display for CcFlag {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            CcFlag::NZ => write!(f, "NZ"),
+            CcFlag::Z => write!(f, "Z"),
+            CcFlag::NC => write!(f, "NC"),
+            CcFlag::C => write!(f, "C"),
+        }
+    }
+}
 
 pub struct Cpu {
     a: u8,
@@ -1821,6 +1840,7 @@ impl Cpu {
     ///
     /// Opcode for CB (07, 00, 01, 02, 03, 04, 05, 06)
     fn rlc_n(&mut self, reg: Register) {
+        debug!("Instruction rlc_n reg: {}", reg);
         let value = match reg {
             Register::A => self.a,
             Register::B => self.b,
@@ -1860,6 +1880,47 @@ impl Cpu {
         self.set_carry_flag(carry_flag);
 
         self.add_clock(4);
+    }
+
+    /// Junm to adress nn
+    /// nn = two byte immediate value
+    ///
+    /// Opcode for C3
+    fn jp_nn(&mut self) {
+        let addr = self.pc;
+        let value = self.mmu.read_word(addr);
+        self.pc = value;
+
+        self.add_program_count(2);
+        self.add_clock(16);
+    }
+
+    /// Jump to address nn if following condition is true:
+    /// cc = NZ, Jump if Z flag is reset.
+    /// cc =  Z, Jump if Z flag is set.
+    /// cc = NC, Jump if C flag is reset.
+    /// cc =  C, Jump if C flag is set.
+    ///
+    /// Opcode for C2, CA, D2, DA
+    fn jump_cc_nn(&mut self, cc: CcFlag) {
+        debug!("Instruction jump_cc_nn {}", cc);
+        let flag = match cc {
+            CcFlag::NZ => self.zero_flag == false,
+            CcFlag::Z => self.zero_flag == true,
+            CcFlag::NC => self.carry_flag == false,
+            CcFlag::C => self.carry_flag == true,
+        };
+
+        if flag {
+            let addr = self.pc;
+            let value = self.mmu.read_word(addr);
+            self.pc = value;
+
+            self.add_clock(16);
+        } else {
+            self.add_program_count(2);
+            self.add_clock(12)
+        }
     }
 
     pub fn exec(&mut self, opcode: u8) {
@@ -2071,15 +2132,15 @@ impl Cpu {
             // C0
             0xC0 => todo!(),
             0xC1 => self.pop_nn(Register::B, Register::C),
-            0xC2 => todo!(),
-            0xC3 => todo!(),
+            0xC2 => self.jump_cc_nn(CcFlag::NZ),
+            0xC3 => self.jp_nn(),
             0xC4 => todo!(),
             0xC5 => self.push_nn(Register::B, Register::C),
             0xC6 => self.add_a_d8(),
             0xC7 => todo!(),
             0xC8 => todo!(),
             0xC9 => todo!(),
-            0xCA => todo!(),
+            0xCA => self.jump_cc_nn(CcFlag::Z),
             0xCB => todo!(),
             0xCC => todo!(),
             0xCD => todo!(),
@@ -2088,7 +2149,7 @@ impl Cpu {
             // D0
             0xD0 => todo!(),
             0xD1 => self.pop_nn(Register::D, Register::E),
-            0xD2 => todo!(),
+            0xD2 => self.jump_cc_nn(CcFlag::NC),
             0xD3 => todo!(),
             0xD4 => todo!(),
             0xD5 => self.push_nn(Register::D, Register::E),
@@ -2096,7 +2157,7 @@ impl Cpu {
             0xD7 => todo!(),
             0xD8 => todo!(),
             0xD9 => todo!(),
-            0xDA => todo!(),
+            0xDA => self.jump_cc_nn(CcFlag::C),
             0xDB => todo!(),
             0xDC => todo!(),
             0xDD => todo!(),
