@@ -1753,15 +1753,108 @@ impl Cpu {
     /// Opcode for 17
     fn rla(&mut self) {
         debug!("Instruction rla");
-
-        let a = self.a;
         let c = if self.carry_flag { 1 } else { 0 };
-        let carry_flag = (a >> 7) & 1 == 1;
-        let result = (a << 1) | c;
-
-        self.a = result;
+        let carry_flag = (self.a >> 7) & 1 == 1;
+        self.a = (self.a << 1) | c;
 
         self.set_zero_flag(false);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(4);
+    }
+
+    /// Rotate A right. Old bit 0 to Carry flag.
+    ///
+    /// Affected Flag:
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Reset
+    /// C Contains old bit 0 data
+    ///
+    /// Opcode for 0F
+    fn rrca(&mut self) {
+        debug!("Instruction rrca");
+        let carry_flag = self.a & 1 == 1;
+        self.a = self.a.rotate_right(1);
+
+        self.set_zero_flag(false);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(4);
+    }
+
+    /// Rotate A ritght through Carry flag
+    ///
+    /// Affected Flag
+    /// Z Reset
+    /// N Reset
+    /// H Reset
+    /// C Reset
+    ///
+    /// Opcode for 1F
+    fn rra(&mut self) {
+        debug!("Instruction rra");
+        let carry_flag = self.a & 1 == 1;
+        let c = if self.carry_flag { 1 } else { 0 };
+        self.a = (self.a >> 1) | c;
+
+        self.set_zero_flag(false);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(carry_flag);
+
+        self.add_clock(4);
+    }
+
+    /// Rotate n left. Old 7 to Carry flag
+    /// n = A, B, C, D, E, H, L, (HL)
+    ///
+    /// Affected Flag
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Reset
+    /// C Contains old 7 data
+    ///
+    /// Opcode for CB (07, 00, 01, 02, 03, 04, 05, 06)
+    fn rlc_n(&mut self, reg: Register) {
+        let value = match reg {
+            Register::A => self.a,
+            Register::B => self.b,
+            Register::C => self.c,
+            Register::D => self.d,
+            Register::E => self.e,
+            Register::H => self.h,
+            Register::L => self.l,
+            Register::HL => {
+                let addr = get_addr_from_registers(self.h, self.l);
+                self.mmu.read_byte(addr)
+            }
+            _ => panic!("Invalid register {}", reg),
+        };
+
+        let carry_flag = (value >> 7) & 1 == 1;
+        let value = value.rotate_left(1);
+
+        match reg {
+            Register::A => self.a = value,
+            Register::B => self.b = value,
+            Register::C => self.c = value,
+            Register::D => self.d = value,
+            Register::E => self.e = value,
+            Register::H => self.h = value,
+            Register::L => self.l = value,
+            Register::HL => {
+                let addr = get_addr_from_registers(self.h, self.l);
+                self.mmu.write_byte(addr, value);
+            }
+            _ => panic!("Invalid register {}", reg),
+        }
+
+        self.set_zero_flag(value == 0);
         self.set_subtraction_flag(false);
         self.set_half_carry_flag(false);
         self.set_carry_flag(carry_flag);
@@ -1787,7 +1880,7 @@ impl Cpu {
             0x0C => self.inc_r8(Register::C),
             0x0D => self.dec_r8(Register::C),
             0x0E => self.load_nn_n(Register::C),
-            0x0F => todo!(),
+            0x0F => self.rrca(),
             // 10
             0x10 => self.stop(),
             0x11 => self.load_n_nn(Register::DE),
@@ -1804,7 +1897,7 @@ impl Cpu {
             0x1C => self.inc_r8(Register::E),
             0x1D => self.dec_r8(Register::E),
             0x1E => self.load_nn_n(Register::E),
-            0x1F => todo!(),
+            0x1F => self.rra(),
             // 20
             0x20 => todo!(),
             0x21 => self.load_n_nn(Register::HL),
