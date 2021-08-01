@@ -1923,6 +1923,17 @@ impl Cpu {
         }
     }
 
+    /// Jump to address contained in HL.
+    ///
+    /// Opcode for E9
+    fn jump_hl(&mut self) {
+        debug!("Instruction jump_hl");
+        let addr = get_addr_from_registers(self.h, self.l);
+        self.pc = addr;
+
+        self.add_clock(4);
+    }
+
     pub fn exec(&mut self, opcode: u8) {
         match opcode {
             // 00
@@ -2173,7 +2184,7 @@ impl Cpu {
             0xE6 => self.and_d8(),
             0xE7 => todo!(),
             0xE8 => self.add_sp_d8(),
-            0xE9 => todo!(),
+            0xE9 => self.jump_hl(),
             0xEA => self.load_imm_a(),
             0xEB => todo!(),
             0xEC => todo!(),
