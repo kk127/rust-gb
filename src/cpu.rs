@@ -1977,6 +1977,60 @@ impl Cpu {
         }
     }
 
+    /// Push address of next instruction onto stack and then
+    /// jump to address nn.
+    /// nn = two byte immediate value
+    ///
+    /// Opcode for CD
+    fn call_nn(&mut self) {
+        debug!("Instruction call_nn");
+        let addr = self.pc;
+        let value = self.mmu.read_word(addr);
+        self.add_program_count(2);
+
+        self.sp = self.sp.wrapping_sub(2);
+
+        let sp = self.sp;
+        let pc = self.pc;
+        self.mmu.write_word(sp, pc);
+
+        self.add_program_count(value);
+        self.add_clock(24);
+    }
+
+    /// Call address nn if following condition is true.
+    /// nn = two byte signed immediate value
+    /// cc = NZ, Jump if Z flag is reset.
+    /// cc =  Z, Jump if Z flag is set.
+    /// cc = NC, Jump if C flag is reset.
+    /// cc =  C, Jump if C flag is set.
+    fn call_cc_nn(&mut self, cc: CcFlag) {
+        debug!("Instruction call_cc_nn {}", cc);
+        let flag = match cc {
+            CcFlag::NZ => self.zero_flag == false,
+            CcFlag::Z => self.zero_flag == true,
+            CcFlag::NC => self.carry_flag == false,
+            CcFlag::C => self.carry_flag == true,
+        };
+        if flag {
+            let addr = self.pc;
+            let value = self.mmu.read_word(addr);
+            self.add_program_count(2);
+
+            self.sp = self.sp.wrapping_sub(2);
+
+            let sp = self.sp;
+            let pc = self.pc;
+            self.mmu.write_word(sp, pc);
+
+            self.add_program_count(value);
+            self.add_clock(24);
+        } else {
+            self.add_program_count(2);
+            self.add_program_count(12);
+        }
+    }
+
     pub fn exec(&mut self, opcode: u8) {
         match opcode {
             // 00
@@ -2188,7 +2242,7 @@ impl Cpu {
             0xC1 => self.pop_nn(Register::B, Register::C),
             0xC2 => self.jump_cc_nn(CcFlag::NZ),
             0xC3 => self.jp_nn(),
-            0xC4 => todo!(),
+            0xC4 => self.call_cc_nn(CcFlag::NZ),
             0xC5 => self.push_nn(Register::B, Register::C),
             0xC6 => self.add_a_d8(),
             0xC7 => todo!(),
@@ -2196,8 +2250,8 @@ impl Cpu {
             0xC9 => todo!(),
             0xCA => self.jump_cc_nn(CcFlag::Z),
             0xCB => todo!(),
-            0xCC => todo!(),
-            0xCD => todo!(),
+            0xCC => self.call_cc_nn(CcFlag::Z),
+            0xCD => self.call_nn(),
             0xCE => todo!(),
             0xCF => todo!(),
             // D0
@@ -2205,7 +2259,7 @@ impl Cpu {
             0xD1 => self.pop_nn(Register::D, Register::E),
             0xD2 => self.jump_cc_nn(CcFlag::NC),
             0xD3 => todo!(),
-            0xD4 => todo!(),
+            0xD4 => self.call_cc_nn(CcFlag::NC),
             0xD5 => self.push_nn(Register::D, Register::E),
             0xD6 => self.sub_a_d8(),
             0xD7 => todo!(),
@@ -2213,7 +2267,7 @@ impl Cpu {
             0xD9 => todo!(),
             0xDA => self.jump_cc_nn(CcFlag::C),
             0xDB => todo!(),
-            0xDC => todo!(),
+            0xDC => self.call_cc_nn(CcFlag::C),
             0xDD => todo!(),
             0xDE => self.sbc_a_d8(),
             0xDF => todo!(),
