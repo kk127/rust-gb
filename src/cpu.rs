@@ -3,7 +3,7 @@ use std::fmt;
 
 use log::{debug, info};
 
-use crate::mmu::Mmu;
+use crate::mmu::{self, Mmu};
 use crate::register::Register;
 use crate::utils::get_addr_from_registers;
 
@@ -1934,6 +1934,49 @@ impl Cpu {
         self.add_clock(4);
     }
 
+    /// Add n to current address and jump to it.
+    /// n = one byte signed immediate value
+    ///
+    /// Opcode for 18
+    fn jr_n(&mut self) {
+        debug!("Instruction jr_n");
+        let addr = self.pc;
+        let value = self.mmu.read_byte(addr) as i8;
+        self.pc = self.pc.wrapping_add(value as u16);
+
+        self.add_program_count(1);
+        self.add_clock(12);
+    }
+
+    /// If following condition is true then add n to current
+    /// address and jump to it.
+    /// n = one byte signed immediate value
+    /// cc = NZ, Jump if Z flag is reset.
+    /// cc =  Z, Jump if Z flag is set.
+    /// cc = NC, Jump if C flag is reset.
+    /// cc =  C, Jump if C flag is set.
+    ///
+    /// Opcode for 20, 28, 30, 38
+    fn jr_cc_n(&mut self, cc: CcFlag) {
+        debug!("Instruction jr_cc_n {}", cc);
+        let flag = match cc {
+            CcFlag::NZ => self.zero_flag == false,
+            CcFlag::Z => self.zero_flag == true,
+            CcFlag::NC => self.carry_flag == false,
+            CcFlag::C => self.carry_flag == true,
+        };
+
+        if flag {
+            let addr = self.pc;
+            let value = self.mmu.read_byte(addr) as i8;
+            self.pc = self.pc.wrapping_add(value as u16).wrapping_add(1);
+            self.add_clock(12);
+        } else {
+            self.add_program_count(1);
+            self.add_clock(8);
+        }
+    }
+
     pub fn exec(&mut self, opcode: u8) {
         match opcode {
             // 00
@@ -1962,7 +2005,7 @@ impl Cpu {
             0x15 => self.dec_r8(Register::D),
             0x16 => self.load_nn_n(Register::D),
             0x17 => self.rla(),
-            0x18 => todo!(),
+            0x18 => self.jr_n(),
             0x19 => self.add_hl_n(Register::DE),
             0x1A => self.load_a_nn(Register::DE),
             0x1B => self.dec_r16(Register::DE),
@@ -1971,7 +2014,7 @@ impl Cpu {
             0x1E => self.load_nn_n(Register::E),
             0x1F => self.rra(),
             // 20
-            0x20 => todo!(),
+            0x20 => self.jr_cc_n(CcFlag::NZ),
             0x21 => self.load_n_nn(Register::HL),
             0x22 => self.load_hli_a(),
             0x23 => self.inc_r16(Register::HL),
@@ -1979,7 +2022,7 @@ impl Cpu {
             0x25 => self.dec_r8(Register::H),
             0x26 => self.load_nn_n(Register::H),
             0x27 => self.daa(),
-            0x28 => todo!(),
+            0x28 => self.jr_cc_n(CcFlag::Z),
             0x29 => self.add_hl_n(Register::HL),
             0x2A => self.load_a_hli(),
             0x2B => self.dec_r16(Register::HL),
@@ -1988,7 +2031,7 @@ impl Cpu {
             0x2E => self.load_nn_n(Register::L),
             0x2F => self.cpl(),
             // 30
-            0x30 => todo!(),
+            0x30 => self.jr_cc_n(CcFlag::NC),
             0x31 => self.load_n_nn(Register::SP),
             0x32 => self.load_hld_a(),
             0x33 => self.inc_r16(Register::SP),
@@ -1996,7 +2039,7 @@ impl Cpu {
             0x35 => self.dec_hl(),
             0x36 => self.load_hl_imm(),
             0x37 => self.scf(),
-            0x38 => todo!(),
+            0x38 => self.jr_cc_n(CcFlag::C),
             0x39 => self.add_hl_n(Register::SP),
             0x3A => self.load_a_hld(),
             0x3B => self.dec_r16(Register::SP),
