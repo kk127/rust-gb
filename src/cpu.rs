@@ -2089,6 +2089,20 @@ impl Cpu {
         }
     }
 
+    /// Pop two bytes from stack & jump to that address then
+    /// enable interrupts.
+    /// Opcode for D9
+    fn reti(&mut self) {
+        let sp = self.sp;
+        let addr = self.mmu.read_word(sp);
+        self.pc = addr;
+        self.sp = self.sp.wrapping_add(2);
+
+        self.ime = true;
+
+        self.add_clock(16);
+    }
+
     pub fn exec(&mut self, opcode: u8) {
         match opcode {
             // 00
@@ -2316,34 +2330,34 @@ impl Cpu {
             0xD0 => self.ret_cc(CcFlag::NC),
             0xD1 => self.pop_nn(Register::D, Register::E),
             0xD2 => self.jump_cc_nn(CcFlag::NC),
-            0xD3 => todo!(),
+            0xD3 => panic!("Invalid opcode {}", opcode),
             0xD4 => self.call_cc_nn(CcFlag::NC),
             0xD5 => self.push_nn(Register::D, Register::E),
             0xD6 => self.sub_a_d8(),
             0xD7 => self.rst_n(0x10),
             0xD8 => self.ret_cc(CcFlag::C),
-            0xD9 => todo!(),
+            0xD9 => self.reti(),
             0xDA => self.jump_cc_nn(CcFlag::C),
-            0xDB => todo!(),
+            0xDB => panic!("Invalid opcode {}", opcode),
             0xDC => self.call_cc_nn(CcFlag::C),
-            0xDD => todo!(),
+            0xDD => panic!("Invalid opcode {}", opcode),
             0xDE => self.sbc_a_d8(),
             0xDF => self.rst_n(0x18),
             // E0
             0xE0 => self.load_n_a(),
             0xE1 => self.pop_nn(Register::H, Register::L),
             0xE2 => self.load_c_a(),
-            0xE3 => todo!(),
-            0xE4 => todo!(),
+            0xE3 => panic!("Invalid opcode {}", opcode),
+            0xE4 => panic!("Invalid opcode {}", opcode),
             0xE5 => self.push_nn(Register::H, Register::L),
             0xE6 => self.and_d8(),
             0xE7 => self.rst_n(0x20),
             0xE8 => self.add_sp_d8(),
             0xE9 => self.jump_hl(),
             0xEA => self.load_imm_a(),
-            0xEB => todo!(),
-            0xEC => todo!(),
-            0xED => todo!(),
+            0xEB => panic!("Invalid opcode {}", opcode),
+            0xEC => panic!("Invalid opcode {}", opcode),
+            0xED => panic!("Invalid opcode {}", opcode),
             0xEE => todo!(),
             0xEF => self.rst_n(0x28),
             // F0
@@ -2351,7 +2365,7 @@ impl Cpu {
             0xF1 => self.pop_nn(Register::A, Register::F),
             0xF2 => self.load_a_c(),
             0xF3 => self.di(),
-            0xF4 => todo!(),
+            0xF4 => panic!("Invalid opcode {}", opcode),
             0xF5 => self.push_nn(Register::A, Register::F),
             0xF6 => self.or_d8(),
             0xF7 => self.rst_n(0x30),
@@ -2359,8 +2373,8 @@ impl Cpu {
             0xF9 => self.load_sp_hl(),
             0xFA => self.load_a_imm(),
             0xFB => self.ei(),
-            0xFC => todo!(),
-            0xFD => todo!(),
+            0xFC => panic!("Invalid opcode {}", opcode),
+            0xFD => panic!("Invalid opcode {}", opcode)
             0xFE => self.cp_d8(),
             0xFF => self.rst_n(0x38),
         }
