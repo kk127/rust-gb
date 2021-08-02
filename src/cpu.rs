@@ -2004,6 +2004,8 @@ impl Cpu {
     /// cc =  Z, Jump if Z flag is set.
     /// cc = NC, Jump if C flag is reset.
     /// cc =  C, Jump if C flag is set.
+    ///
+    /// Opcode for C4, CC, D4, DC
     fn call_cc_nn(&mut self, cc: CcFlag) {
         debug!("Instruction call_cc_nn {}", cc);
         let flag = match cc {
@@ -2029,6 +2031,22 @@ impl Cpu {
             self.add_program_count(2);
             self.add_program_count(12);
         }
+    }
+
+    /// Push present address onto stack.
+    /// Jump to address $0000 + n.
+    /// n = $00, $08, $10, $18, $20, $28, $30, $38
+    ///
+    /// Opcode for C7, CF, D7, DF, E7, EF, F7, FF
+    fn rst_n(&mut self, n: u16) {
+        debug!("Instruction rst_n {}", n);
+        self.sp = self.sp.wrapping_sub(2);
+        let sp = self.sp;
+        let pc = self.pc;
+        self.mmu.write_word(sp, pc);
+
+        self.pc = n;
+        self.add_clock(16);
     }
 
     pub fn exec(&mut self, opcode: u8) {
@@ -2245,7 +2263,7 @@ impl Cpu {
             0xC4 => self.call_cc_nn(CcFlag::NZ),
             0xC5 => self.push_nn(Register::B, Register::C),
             0xC6 => self.add_a_d8(),
-            0xC7 => todo!(),
+            0xC7 => self.rst_n(0x00),
             0xC8 => todo!(),
             0xC9 => todo!(),
             0xCA => self.jump_cc_nn(CcFlag::Z),
@@ -2253,7 +2271,7 @@ impl Cpu {
             0xCC => self.call_cc_nn(CcFlag::Z),
             0xCD => self.call_nn(),
             0xCE => todo!(),
-            0xCF => todo!(),
+            0xCF => self.rst_n(0x08),
             // D0
             0xD0 => todo!(),
             0xD1 => self.pop_nn(Register::D, Register::E),
@@ -2262,7 +2280,7 @@ impl Cpu {
             0xD4 => self.call_cc_nn(CcFlag::NC),
             0xD5 => self.push_nn(Register::D, Register::E),
             0xD6 => self.sub_a_d8(),
-            0xD7 => todo!(),
+            0xD7 => self.rst_n(0x10),
             0xD8 => todo!(),
             0xD9 => todo!(),
             0xDA => self.jump_cc_nn(CcFlag::C),
@@ -2270,7 +2288,7 @@ impl Cpu {
             0xDC => self.call_cc_nn(CcFlag::C),
             0xDD => todo!(),
             0xDE => self.sbc_a_d8(),
-            0xDF => todo!(),
+            0xDF => self.rst_n(0x18),
             // E0
             0xE0 => self.load_n_a(),
             0xE1 => self.pop_nn(Register::H, Register::L),
@@ -2279,7 +2297,7 @@ impl Cpu {
             0xE4 => todo!(),
             0xE5 => self.push_nn(Register::H, Register::L),
             0xE6 => self.and_d8(),
-            0xE7 => todo!(),
+            0xE7 => self.rst_n(0x20),
             0xE8 => self.add_sp_d8(),
             0xE9 => self.jump_hl(),
             0xEA => self.load_imm_a(),
@@ -2287,7 +2305,7 @@ impl Cpu {
             0xEC => todo!(),
             0xED => todo!(),
             0xEE => todo!(),
-            0xEF => todo!(),
+            0xEF => self.rst_n(0x28),
             // F0
             0xF0 => self.load_a_n(),
             0xF1 => self.pop_nn(Register::A, Register::F),
@@ -2296,7 +2314,7 @@ impl Cpu {
             0xF4 => todo!(),
             0xF5 => self.push_nn(Register::A, Register::F),
             0xF6 => self.or_d8(),
-            0xF7 => todo!(),
+            0xF7 => self.rst_n(0x30),
             0xF8 => self.load_sp_n(),
             0xF9 => self.load_sp_hl(),
             0xFA => self.load_a_imm(),
@@ -2304,7 +2322,7 @@ impl Cpu {
             0xFC => todo!(),
             0xFD => todo!(),
             0xFE => self.cp_d8(),
-            0xFF => todo!(),
+            0xFF => self.rst_n(0x38),
         }
     }
 
