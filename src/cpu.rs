@@ -1,4 +1,4 @@
-use std::char::REPLACEMENT_CHARACTER;
+use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::fmt;
 
 use log::{debug, info};
@@ -1207,7 +1207,7 @@ impl Cpu {
     /// H ReSet
     /// C Reset
     ///
-    /// Opcode for AE
+    /// Opcode for EE
     fn xor_d8(&mut self) {
         debug!("Instruction xor_d8");
         let addr = self.pc;
@@ -1841,45 +1841,362 @@ impl Cpu {
     /// Opcode for CB (07, 00, 01, 02, 03, 04, 05, 06)
     fn rlc_n(&mut self, reg: Register) {
         debug!("Instruction rlc_n reg: {}", reg);
-        let value = match reg {
-            Register::A => self.a,
-            Register::B => self.b,
-            Register::C => self.c,
-            Register::D => self.d,
-            Register::E => self.e,
-            Register::H => self.h,
-            Register::L => self.l,
-            Register::HL => {
-                let addr = get_addr_from_registers(self.h, self.l);
-                self.mmu.read_byte(addr)
-            }
-            _ => panic!("Invalid register {}", reg),
-        };
+        let value = self.read_r8(reg);
 
         let carry_flag = (value >> 7) & 1 == 1;
         let value = value.rotate_left(1);
 
-        match reg {
-            Register::A => self.a = value,
-            Register::B => self.b = value,
-            Register::C => self.c = value,
-            Register::D => self.d = value,
-            Register::E => self.e = value,
-            Register::H => self.h = value,
-            Register::L => self.l = value,
-            Register::HL => {
-                let addr = get_addr_from_registers(self.h, self.l);
-                self.mmu.write_byte(addr, value);
-            }
-            _ => panic!("Invalid register {}", reg),
-        }
+        self.write_r8(reg, value);
 
         self.set_zero_flag(value == 0);
         self.set_subtraction_flag(false);
         self.set_half_carry_flag(false);
         self.set_carry_flag(carry_flag);
 
-        self.add_clock(4);
+        self.add_program_count(1);
+        if reg == Register::HL {
+            self.add_clock(16);
+        } else {
+            self.add_clock(8);
+        }
+    }
+
+    /// Rotate n right. Old bit 0 to Carry flag
+    /// n = A, B, C, D, E, H, L, (HL)
+    ///
+    /// Affected Flag
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Reset
+    /// C Contains old bit 0 data
+    ///
+    /// Opcode for CB (0F, 08, 09, 0A, 0B, 0C, 0D, 0E)
+    fn rrc_n(&mut self, reg: Register) {
+        debug!("Instruction rrc_n reg: {}", reg);
+        let value = self.read_r8(reg);
+
+        let carry_flag = (value & 1) == 1;
+        let value = value.rotate_right(1);
+
+        self.write_r8(reg, value);
+
+        self.set_zero_flag(value == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(carry_flag);
+
+        self.add_program_count(1);
+        if reg == Register::HL {
+            self.add_clock(16);
+        } else {
+            self.add_clock(8);
+        }
+    }
+
+    /// Rotate n left through Carry flag
+    /// n = A, B, C, D, E, H, L, (HL)
+    ///
+    /// Affected Flag
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Reset
+    /// C Contains old bit 7 data
+    ///
+    /// Opcode for CB (17, 10, 11, 12, 13, 14, 15, 16)
+    fn rl_n(&mut self, reg: Register) {
+        debug!("Instruction rl_n reg: {}", reg);
+        let value = self.read_r8(reg);
+        let c = if self.carry_flag { 1 } else { 0 };
+
+        let carry_flag = ((value >> 7) & 1) == 1;
+
+        let value = (value << 1) | c;
+
+        self.write_r8(reg, value);
+
+        self.set_zero_flag(value == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(carry_flag);
+
+        self.add_program_count(1);
+        if reg == Register::HL {
+            self.add_clock(16);
+        } else {
+            self.add_clock(8);
+        }
+    }
+
+    /// Rotate n right ghrough Carry flag
+    /// n = A, B, C, D, E, H, L, (HL)
+    ///
+    /// Affected Flag
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Reset
+    /// C Contains old bit 7 data
+    ///
+    /// Opcode for CB (1F, 18, 19, 1A, 1B, 1C, 1D, 1E)
+    fn rr_n(&mut self, reg: Register) {
+        debug!("Instruction rr_n reg: {}", reg);
+        let value = self.read_r8(reg);
+        let c = if self.carry_flag { 1 } else { 0 };
+
+        let carry_flag = (value & 1) == 1;
+
+        let value = (value >> 1) | c;
+
+        self.write_r8(reg, value);
+
+        self.set_zero_flag(value == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(carry_flag);
+
+        self.add_program_count(1);
+        if reg == Register::HL {
+            self.add_clock(16);
+        } else {
+            self.add_clock(8);
+        }
+    }
+
+    /// Shift n left into Carry. LSB of n set ot 0
+    /// n = A, B, C, D, E, H, L, (HL)
+    ///
+    /// Affected Flag
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Reset
+    /// C Contains old bit 7 data
+    ///
+    /// Opcode for CB (27, 20, 21, 22, 23, 24, 25, 26)
+    fn sla_n(&mut self, reg: Register) {
+        debug!("Instruction sla_n reg: {}", reg);
+        let value = self.read_r8(reg);
+
+        let carry_flag = (value & 0x80) > 0;
+        let value = value << 1;
+
+        self.write_r8(reg, value);
+
+        self.set_zero_flag(value == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(carry_flag);
+
+        self.add_program_count(1);
+        if reg == Register::HL {
+            self.add_clock(16);
+        } else {
+            self.add_clock(8);
+        }
+    }
+
+    /// Shift n right into Carry. MSB doesn't change
+    /// n = A, B, C, D, E, H, L, (HL)
+    ///
+    /// Affected Flag
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Reset
+    /// C Contains old bit 0 data
+    ///
+    /// Opcode for CB (2F, 28, 29, 2A, 2B, 2C, 2D, 2E)
+    fn sra_n(&mut self, reg: Register) {
+        debug!("Instruction sra_n reg: {}", reg);
+        let value = self.read_r8(reg);
+
+        let carry_flag = (value & 1) == 1;
+        let value = (value >> 1) | (value & 0x80);
+
+        self.write_r8(reg, value);
+
+        self.set_zero_flag(value == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(carry_flag);
+
+        self.add_program_count(1);
+        if reg == Register::HL {
+            self.add_clock(16);
+        } else {
+            self.add_clock(8);
+        }
+    }
+
+    /// Swap upper & lower nibles of n.
+    /// n = A, B, C, D, E, H, L, (HL)
+    ///
+    /// Affected Flag
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Reset
+    /// C Reset
+    ///
+    /// Opcode for CB (37, 30, 31, 32, 33, 34, 35, 36)
+    fn swap(&mut self, reg: Register) {
+        debug!("Instruction Swap reg: {}", reg);
+        let value = self.read_r8(reg);
+        let value = ((value & 0xf0) >> 4) | ((value & 0x0f) << 4);
+
+        self.write_r8(reg, value);
+
+        self.set_zero_flag(value == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(false);
+
+        self.add_program_count(1);
+        if reg == Register::HL {
+            self.add_clock(16);
+        } else {
+            self.add_clock(8);
+        }
+    }
+
+    /// Shift n right into carry. MSB set to 0.
+    /// n = A, B, C, D, E, H, L, (HL)
+    ///
+    /// Affected Flag
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Reset
+    /// C Contains old bit 0 data
+    ///
+    /// Opcode for CB (3F, 38, 39, 3A, 3B, 3C, 3D, 3E)
+    fn srl_n(&mut self, reg: Register) {
+        debug!("Instruction srl_n reg: {}", reg);
+        let value = self.read_r8(reg);
+
+        let carry_flag = (value & 1) == 1;
+
+        let value = value >> 1;
+
+        self.write_r8(reg, value);
+
+        self.set_zero_flag(value == 0);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(false);
+        self.set_carry_flag(carry_flag);
+
+        self.add_program_count(1);
+        if reg == Register::HL {
+            self.add_clock(16);
+        } else {
+            self.add_clock(8);
+        }
+    }
+
+    /// Test bit b in register r.
+    /// b = 0 - 7
+    /// r = A, B, C, D, E, H, L, (HL)
+    ///
+    /// Affected Flag
+    /// Z Set if result is zero
+    /// N Reset
+    /// H Reset
+    /// C Not affected
+    ///
+    /// Opcode for CB (40 - 7F)
+    fn bit(&mut self, reg: Register, b: u8) {
+        debug!("Instruction bit reg: {}, bit: {}", reg, b);
+
+        let value = self.read_r8(reg);
+
+        let zero_flag = ((value >> b) & 1) == 0;
+
+        self.set_zero_flag(zero_flag);
+        self.set_subtraction_flag(false);
+        self.set_half_carry_flag(true);
+
+        self.add_program_count(1);
+        if reg == Register::HL {
+            self.add_clock(16);
+        } else {
+            self.add_clock(8);
+        }
+    }
+
+    /// Reset bit b in register r
+    /// b = 0 - 7
+    /// r = A, B, C, D, E, H, L, (HL)
+    ///
+    /// Affected Flag
+    /// None
+    ///
+    /// Opcode for CB (80 - BF)
+    fn res(&mut self, reg: Register, b: u8) {
+        debug!("Instruction res reg: {}, bit b: {}", reg, b);
+
+        let value = self.read_r8(reg);
+        let value = value & !(1 << b);
+        self.write_r8(reg, value);
+
+        self.add_program_count(1);
+        if reg == Register::HL {
+            self.add_clock(16);
+        } else {
+            self.add_clock(8);
+        }
+    }
+
+    /// Set bit b in register r
+    /// b = 0 - 7
+    /// r = A, B, C, D, E, H, L, (HL)
+    ///
+    /// Affected Flag
+    /// None
+    ///
+    /// Opcode for CB (C0 - FF)
+    fn set(&mut self, reg: Register, b: u8) {
+        debug!("Instruction set reg: {}, bit: {}", reg, b);
+
+        let value = self.read_r8(reg);
+        let value = value | (1 << b);
+
+        self.write_r8(reg, value);
+
+        self.add_program_count(1);
+        if reg == Register::HL {
+            self.add_clock(16);
+        } else {
+            self.add_clock(8);
+        }
+    }
+
+    /// Prefix CB
+    fn prefix_cb(&mut self) {
+        debug!("Instruction prefix_cb");
+        let pc = self.pc;
+        let opcode = self.mmu.read_byte(pc);
+        let b = (opcode >> 3) & 0x07;
+
+        let reg = match opcode & 0x07 {
+            0x00 => Register::B,
+            0x01 => Register::C,
+            0x02 => Register::D,
+            0x03 => Register::E,
+            0x04 => Register::H,
+            0x05 => Register::L,
+            0x06 => Register::HL,
+            0x07 => Register::A,
+            _ => panic!("Invalid opcode: {}", opcode),
+        };
+
+        match opcode {
+            0x00..=0x07 => self.rlc_n(reg),
+            0x08..=0x0f => self.rrc_n(reg),
+            0x10..=0x17 => self.rl_n(reg),
+            0x18..=0x1f => self.rr_n(reg),
+            0x20..=0x27 => self.sla_n(reg),
+            0x28..=0x2f => self.sra_n(reg),
+            0x30..=0x37 => self.swap(reg),
+            0x38..=0x3f => self.srl_n(reg),
+            0x40..=0x7f => self.bit(reg, b),
+            0x80..=0xbf => self.res(reg, b),
+            0xc0..=0xff => self.set(reg, b),
+        }
     }
 
     /// Junm to adress nn
@@ -2321,10 +2638,10 @@ impl Cpu {
             0xC8 => self.ret_cc(CcFlag::Z),
             0xC9 => self.ret(),
             0xCA => self.jump_cc_nn(CcFlag::Z),
-            0xCB => todo!(),
+            0xCB => self.prefix_cb(),
             0xCC => self.call_cc_nn(CcFlag::Z),
             0xCD => self.call_nn(),
-            0xCE => todo!(),
+            0xCE => self.adc_a_d8(),
             0xCF => self.rst_n(0x08),
             // D0
             0xD0 => self.ret_cc(CcFlag::NC),
@@ -2358,7 +2675,7 @@ impl Cpu {
             0xEB => panic!("Invalid opcode {}", opcode),
             0xEC => panic!("Invalid opcode {}", opcode),
             0xED => panic!("Invalid opcode {}", opcode),
-            0xEE => todo!(),
+            0xEE => self.xor_d8(),
             0xEF => self.rst_n(0x28),
             // F0
             0xF0 => self.load_a_n(),
@@ -2374,7 +2691,7 @@ impl Cpu {
             0xFA => self.load_a_imm(),
             0xFB => self.ei(),
             0xFC => panic!("Invalid opcode {}", opcode),
-            0xFD => panic!("Invalid opcode {}", opcode)
+            0xFD => panic!("Invalid opcode {}", opcode),
             0xFE => self.cp_d8(),
             0xFF => self.rst_n(0x38),
         }
@@ -2422,7 +2739,7 @@ impl Cpu {
         res
     }
 
-    /// set flags from 8bit value
+    /// set flags from 8bit valuj
     fn set_flags_from_byte(&mut self, value: u8) {
         if (value & 0b1000_0000) > 0 {
             self.set_zero_flag(true);
@@ -2435,6 +2752,46 @@ impl Cpu {
         }
         if (value & 0b0001_0000) > 0 {
             self.set_carry_flag(true);
+        }
+    }
+
+    /// Read 8 byte value from register
+    /// Regisger for A, B, C, D, E, H, L, (HL)
+    fn read_r8(&mut self, reg: Register) -> u8 {
+        debug!("read_r8");
+        match reg {
+            Register::A => self.a,
+            Register::B => self.b,
+            Register::C => self.c,
+            Register::D => self.d,
+            Register::E => self.e,
+            Register::H => self.h,
+            Register::L => self.l,
+            Register::HL => {
+                let addr = get_addr_from_registers(self.h, self.l);
+                self.mmu.read_byte(addr)
+            }
+            _ => panic!("Invalid register {}", reg),
+        }
+    }
+
+    /// Write 8 byte value to register
+    /// Regisger for A, B, C, D, E, H, L, (HL)
+    fn write_r8(&mut self, reg: Register, value: u8) {
+        debug!("write_r8");
+        match reg {
+            Register::A => self.a = value,
+            Register::B => self.b = value,
+            Register::C => self.c = value,
+            Register::D => self.d = value,
+            Register::E => self.e = value,
+            Register::H => self.h = value,
+            Register::L => self.l = value,
+            Register::HL => {
+                let addr = get_addr_from_registers(self.h, self.l);
+                self.mmu.write_byte(addr, value);
+            }
+            _ => panic!("Invalid register {}", reg),
         }
     }
 }
@@ -2533,5 +2890,27 @@ mod tests {
         assert_eq!(true, cpu.subtraction_flag);
         assert_eq!(true, cpu.half_carry_flag);
         assert_eq!(true, cpu.carry_flag);
+    }
+
+    #[test]
+    fn test_read_r8_all() {
+        let mut cpu = Cpu::new();
+        cpu.write_r8(Register::A, 1);
+        cpu.write_r8(Register::B, 2);
+        cpu.write_r8(Register::C, 3);
+        cpu.write_r8(Register::D, 4);
+        cpu.write_r8(Register::E, 5);
+        cpu.write_r8(Register::H, 6);
+        cpu.write_r8(Register::L, 7);
+        // cpu.write_r8(Register::HL, 8); TODO
+
+        assert_eq!(cpu.read_r8(Register::A), 1);
+        assert_eq!(cpu.read_r8(Register::B), 2);
+        assert_eq!(cpu.read_r8(Register::C), 3);
+        assert_eq!(cpu.read_r8(Register::D), 4);
+        assert_eq!(cpu.read_r8(Register::E), 5);
+        assert_eq!(cpu.read_r8(Register::H), 6);
+        assert_eq!(cpu.read_r8(Register::L), 7);
+        // assert_eq!(cpu.read_r8(Register::HL), 8);TODO
     }
 }

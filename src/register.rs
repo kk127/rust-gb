@@ -1,5 +1,5 @@
-use std::{fmt};
-#[derive(Clone, Copy)]
+use std::fmt;
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Register {
     A,
     B,
