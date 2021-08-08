@@ -1,9 +1,8 @@
-use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::fmt;
 
-use log::{debug, info};
+use log::debug;
 
-use crate::mmu::{self, Mmu};
+use crate::mmu::Mmu;
 use crate::register::Register;
 use crate::utils::get_addr_from_registers;
 
