@@ -253,7 +253,7 @@ impl Cpu {
     /// Opcode for EA
     fn load_imm_a(&mut self) {
         let pc = self.pc;
-        let addr = self.mmu.read_word(pc);
+        let addr = self.read_word(pc);
         let value = self.a;
         self.mmu.write_byte(addr, value);
 
@@ -283,7 +283,7 @@ impl Cpu {
     /// Opcode for FA
     fn load_a_imm(&mut self) {
         let pc = self.pc;
-        let addr = self.mmu.read_word(pc);
+        let addr = self.read_word(pc);
         let value = self.mmu.read_byte(addr);
         self.a = value;
 
@@ -514,9 +514,9 @@ impl Cpu {
     fn load_nn_sp(&mut self) {
         let pc = self.pc;
         let sp = self.sp;
-        let addr = self.mmu.read_word(pc);
+        let addr = self.read_word(pc);
 
-        self.mmu.write_word(addr, sp);
+        self.write_word(addr, sp);
 
         debug!("Instruction load_nn_sp addr: {}, sp: {}", addr, sp);
 
@@ -544,7 +544,7 @@ impl Cpu {
         let addr = self.sp;
         let value = (high_value as u16) << 8 + low_value as u16;
 
-        self.mmu.write_word(addr, value);
+        self.write_word(addr, value);
 
         self.add_clock(16);
     }
@@ -2204,7 +2204,7 @@ impl Cpu {
     /// Opcode for C3
     fn jp_nn(&mut self) {
         let addr = self.pc;
-        let value = self.mmu.read_word(addr);
+        let value = self.read_word(addr);
         self.pc = value;
 
         self.add_program_count(2);
@@ -2229,7 +2229,7 @@ impl Cpu {
 
         if flag {
             let addr = self.pc;
-            let value = self.mmu.read_word(addr);
+            let value = self.read_word(addr);
             self.pc = value;
 
             self.add_clock(16);
@@ -2301,14 +2301,14 @@ impl Cpu {
     fn call_nn(&mut self) {
         debug!("Instruction call_nn");
         let addr = self.pc;
-        let value = self.mmu.read_word(addr);
+        let value = self.read_word(addr);
         self.add_program_count(2);
 
         self.sp = self.sp.wrapping_sub(2);
 
         let sp = self.sp;
         let pc = self.pc;
-        self.mmu.write_word(sp, pc);
+        self.write_word(sp, pc);
 
         self.add_program_count(value);
         self.add_clock(24);
@@ -2332,14 +2332,14 @@ impl Cpu {
         };
         if flag {
             let addr = self.pc;
-            let value = self.mmu.read_word(addr);
+            let value = self.read_word(addr);
             self.add_program_count(2);
 
             self.sp = self.sp.wrapping_sub(2);
 
             let sp = self.sp;
             let pc = self.pc;
-            self.mmu.write_word(sp, pc);
+            self.write_word(sp, pc);
 
             self.add_program_count(value);
             self.add_clock(24);
@@ -2359,7 +2359,7 @@ impl Cpu {
         self.sp = self.sp.wrapping_sub(2);
         let sp = self.sp;
         let pc = self.pc;
-        self.mmu.write_word(sp, pc);
+        self.write_word(sp, pc);
 
         self.pc = n;
         self.add_clock(16);
@@ -2370,7 +2370,7 @@ impl Cpu {
     fn ret(&mut self) {
         debug!("Instruction ret ");
         let sp = self.sp;
-        let addr = self.mmu.read_word(sp);
+        let addr = self.read_word(sp);
         self.pc = addr;
         self.sp = self.sp.wrapping_add(2);
 
@@ -2395,7 +2395,7 @@ impl Cpu {
         };
         if flag {
             let sp = self.sp;
-            let addr = self.mmu.read_word(sp);
+            let addr = self.read_word(sp);
             self.pc = addr;
             self.sp = self.sp.wrapping_add(2);
 
@@ -2410,7 +2410,7 @@ impl Cpu {
     /// Opcode for D9
     fn reti(&mut self) {
         let sp = self.sp;
-        let addr = self.mmu.read_word(sp);
+        let addr = self.read_word(sp);
         self.pc = addr;
         self.sp = self.sp.wrapping_add(2);
 
@@ -2792,6 +2792,21 @@ impl Cpu {
             }
             _ => panic!("Invalid register {}", reg),
         }
+    }
+
+    fn read_word(&mut self, addr: u16) -> u16 {
+        let low_value = self.mmu.read_byte(addr);
+        let high_value = self.mmu.read_byte(addr.wrapping_add(1));
+
+        (high_value as u16) << 8 + (low_value as u16)
+    }
+
+    fn write_word(&mut self, addr: u16, value: u16) {
+        let low_value = (value & 0xff) as u8;
+        let high_value = (value >> 8) as u8;
+
+        self.mmu.write_byte(addr, low_value);
+        self.mmu.write_byte(addr.wrapping_add(1), high_value);
     }
 }
 
