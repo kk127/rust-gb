@@ -10,7 +10,7 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-    fn new(cartridge_name: &str) -> Self {
+    pub(crate) fn new(cartridge_name: &str) -> Self {
         info!("Reading {} file...", cartridge_name);
 
         let path = Path::new("cartridges").join(cartridge_name);
@@ -93,14 +93,14 @@ impl Cartridge {
         }
     }
 
-    fn read(&self, addr: u16) -> u8 {
+    pub(crate) fn read(&self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x7fff => self.rom[addr as usize],
             _ => todo!(),
         }
     }
 
-    fn write(&mut self, addr: u16, value: u8) {
+    pub(crate) fn write(&mut self, addr: u16, value: u8) {
         todo!();
     }
 }
