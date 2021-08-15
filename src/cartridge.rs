@@ -7,6 +7,10 @@ pub struct Cartridge {
     rom: Vec<u8>,
     ram: Vec<u8>,
     mode_flag: bool,
+    ram_enable: bool,
+    bank_no_lower: u8,
+    bank_no_upper: u8,
+    mode: bool,
 }
 
 impl Cartridge {
@@ -89,7 +93,11 @@ impl Cartridge {
         Cartridge {
             rom,
             ram: vec![0; ram_size_kb * 1024],
-            mode_flag: false, //TODO,
+            mode_flag: false,  //TODO,
+            ram_enable: false, //TODO
+            bank_no_lower: 0,
+            bank_no_upper: 0,
+            mode: false, //TODO
         }
     }
 
@@ -101,7 +109,13 @@ impl Cartridge {
     }
 
     pub(crate) fn write(&mut self, addr: u16, value: u8) {
-        todo!();
+        match addr {
+            0x0000..=0x1fff => self.ram_enable = value & 0x0f == 0x0a,
+            0x2000..=0x3fff => self.bank_no_lower = value & 0x1f,
+            0x4000..=0x5fff => self.bank_no_upper = value & 0x03,
+            0x6000..=0x7fff => self.mode = value & 0x01 > 0,
+            _ => todo!(),
+        }
     }
 }
 

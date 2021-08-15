@@ -39,7 +39,7 @@ pub struct Cpu {
     half_carry_flag: bool,
     carry_flag: bool,
 
-    mmu: Mmu,
+    pub mmu: Mmu,
     clock: u32,
     ime: bool,
     halt: bool,
@@ -67,6 +67,51 @@ impl Cpu {
             ime: false,
             halt: false,
         }
+    }
+
+    fn get_f_num(&self) -> u8 {
+        let mut res: u8 = 0;
+        if self.zero_flag {
+            res |= 1 << 7;
+        }
+        if self.subtraction_flag {
+            res |= 1 << 6;
+        }
+        if self.half_carry_flag {
+            res |= 1 << 5;
+        }
+        if self.carry_flag {
+            res |= 1 << 4;
+        }
+        res
+    }
+
+    pub fn step(&mut self) -> u16 {
+        let pc = self.pc;
+        let opcode = self.mmu.read_byte(pc);
+        debug!(
+            "PC: 0x{:04x}, opcode: 0x{:04x}, sp: 0x{:04x}",
+            pc, opcode, self.sp
+        );
+        debug!(
+            "a: 0x{:02x}, f: {:02x}, b: 0x{:02x}, c: 0x{:02x}",
+            self.a,
+            self.get_f_num(),
+            self.b,
+            self.c
+        );
+        debug!(
+            "d: 0x{:02x}, e: 0x{:02x}, h: 0x{:02x}, l: 0x{:02x}",
+            self.d, self.e, self.h, self.l
+        );
+
+        self.add_program_count(1);
+        let before_clock = self.clock;
+        self.exec(opcode);
+        let after_clock = self.clock;
+        let elapse_clock = after_clock - before_clock;
+        self.mmu.update(elapse_clock as u8);
+        elapse_clock as u16
     }
 
     /// Put value n into nn.
@@ -224,6 +269,7 @@ impl Cpu {
             _ => panic!("Invalid register {}", reg),
         };
         let value = self.a;
+        self.mmu.write_byte(addr, value);
         debug!("Instruction load_nn_a addr: {}, value: {}", addr, value);
 
         self.add_clock(8);
@@ -327,14 +373,16 @@ impl Cpu {
         let low_register = self.l;
         let addr = get_addr_from_registers(high_register, low_register);
         let value = self.a;
+        debug!(
+            "Instruction load_hli_a addr: 0x{:04x}, value: 0x{:04x}",
+            addr, value
+        );
         self.mmu.write_byte(addr, value);
 
         self.l = self.l.wrapping_add(1);
         if self.l == 0 {
             self.h = self.h.wrapping_add(1);
         }
-
-        debug!("Instruction load_hli_a addr: {}, value: {}", addr, value);
 
         self.add_clock(8);
     }
@@ -403,9 +451,8 @@ impl Cpu {
         let n = self.mmu.read_byte(pc);
         let addr = 0xFF00 + n as u16;
         let value = self.a;
+        debug!("Instruction load_n_a addr: {:0x}, value: {}", addr, value);
         self.mmu.write_byte(addr, value);
-
-        debug!("Instruction load_n_a addr: {}, value: {}", addr, value);
 
         self.add_program_count(1);
         self.add_clock(12);
@@ -418,10 +465,9 @@ impl Cpu {
         let pc = self.pc;
         let n = self.mmu.read_byte(pc);
         let addr = 0xFF00 + n as u16;
+        debug!("Instruction load_a_n addr: 0x{:0x}", addr);
         let value = self.mmu.read_byte(addr);
         self.a = value;
-
-        debug!("Instruction load_a_n addr: {}, value: {}", addr, value);
 
         self.add_program_count(1);
         self.add_clock(12);
@@ -456,8 +502,8 @@ impl Cpu {
         }
 
         debug!(
-            "Instruction load_n_nn high_value: {}, low_value: {}",
-            high_value, low_value
+            "Instruction load_n_nn high_value: 0x{:0x}, low_value: 0x{:0x}, register: {}",
+            high_value, low_value, reg
         );
 
         self.add_program_count(2);
@@ -542,7 +588,7 @@ impl Cpu {
         };
 
         let addr = self.sp;
-        let value = (high_value as u16) << 8 + low_value as u16;
+        let value = ((high_value as u16) << 8) + low_value as u16;
 
         self.write_word(addr, value);
 
@@ -1165,6 +1211,7 @@ impl Cpu {
         };
 
         self.a ^= value;
+        debug!("xor A self.a: 0x{:02x}, value: {:0b}", self.a, value);
 
         self.set_zero_flag(self.a == 0);
         self.set_subtraction_flag(false);
@@ -1292,9 +1339,12 @@ impl Cpu {
     ///
     /// Opcode for FE
     fn cp_d8(&mut self) {
-        debug!("Instruction cp_d8");
         let addr = self.pc;
         let value = self.mmu.read_byte(addr);
+        debug!(
+            "Instruction cp_d8 addr: 0x{:04x}, value: 0x{:04x}",
+            addr, value
+        );
 
         let half_carry_flag = (self.a & 0x0f) < (value & 0x0f);
         let carry_flag = self.a < value;
@@ -1390,17 +1440,38 @@ impl Cpu {
     fn dec_r8(&mut self, reg: Register) {
         debug!("dec_r8 reg {}", reg);
         let value = match reg {
-            Register::A => self.a.wrapping_sub(1),
-            Register::B => self.b.wrapping_sub(1),
-            Register::C => self.c.wrapping_sub(1),
-            Register::D => self.d.wrapping_sub(1),
-            Register::E => self.e.wrapping_sub(1),
-            Register::H => self.h.wrapping_sub(1),
-            Register::L => self.l.wrapping_sub(1),
+            Register::A => {
+                self.a = self.a.wrapping_sub(1);
+                self.a
+            }
+            Register::B => {
+                self.b = self.b.wrapping_sub(1);
+                self.b
+            }
+            Register::C => {
+                self.c = self.c.wrapping_sub(1);
+                self.c
+            }
+            Register::D => {
+                self.d = self.d.wrapping_sub(1);
+                self.d
+            }
+            Register::E => {
+                self.e = self.e.wrapping_sub(1);
+                self.e
+            }
+            Register::H => {
+                self.h = self.h.wrapping_sub(1);
+                self.h
+            }
+            Register::L => {
+                self.l = self.l.wrapping_sub(1);
+                self.l
+            }
             _ => panic!("Invalid register {}", reg),
         };
 
-        let half_carry_flag = (value & 0x0f) == 0x0f;
+        let half_carry_flag = (value.wrapping_add(1) & 0x0f) == 0x00;
 
         self.set_zero_flag(value == 0);
         self.set_subtraction_flag(true);
@@ -2203,11 +2274,12 @@ impl Cpu {
     ///
     /// Opcode for C3
     fn jp_nn(&mut self) {
+        debug!("Instruction jp_nn");
         let addr = self.pc;
         let value = self.read_word(addr);
         self.pc = value;
 
-        self.add_program_count(2);
+        // self.add_program_count(2);
         self.add_clock(16);
     }
 
@@ -2299,18 +2371,19 @@ impl Cpu {
     ///
     /// Opcode for CD
     fn call_nn(&mut self) {
-        debug!("Instruction call_nn");
-        let addr = self.pc;
-        let value = self.read_word(addr);
-        self.add_program_count(2);
+        let addr = self.read_word(self.pc);
+        debug!("Instruction call_nn 0x{:04x}", addr);
 
+        self.add_program_count(2);
         self.sp = self.sp.wrapping_sub(2);
 
         let sp = self.sp;
         let pc = self.pc;
+        debug!("call_nn sp: 0x{:04x}, pc: 0x{:04x}", sp, pc);
         self.write_word(sp, pc);
 
-        self.add_program_count(value);
+        // self.add_program_count(value);
+        self.pc = addr;
         self.add_clock(24);
     }
 
@@ -2441,7 +2514,7 @@ impl Cpu {
             // 10
             0x10 => self.stop(),
             0x11 => self.load_n_nn(Register::DE),
-            0x12 => self.load_n_nn(Register::DE),
+            0x12 => self.load_nn_a(Register::DE),
             0x13 => self.inc_r16(Register::DE),
             0x14 => self.inc_r8(Register::D),
             0x15 => self.dec_r8(Register::D),
@@ -2798,13 +2871,17 @@ impl Cpu {
         let low_value = self.mmu.read_byte(addr);
         let high_value = self.mmu.read_byte(addr.wrapping_add(1));
 
-        (high_value as u16) << 8 + (low_value as u16)
+        ((high_value as u16) << 8) + (low_value as u16)
     }
 
     fn write_word(&mut self, addr: u16, value: u16) {
         let low_value = (value & 0xff) as u8;
         let high_value = (value >> 8) as u8;
 
+        debug!(
+            "write_word low_value: 0x{:0x}, high_value: {:0x}",
+            low_value, high_value
+        );
         self.mmu.write_byte(addr, low_value);
         self.mmu.write_byte(addr.wrapping_add(1), high_value);
     }
