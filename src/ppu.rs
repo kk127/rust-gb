@@ -16,6 +16,7 @@ pub struct Ppu {
     wx: u8,
     frame: [u8; 160 * 144],
     counter: u16,
+    pub irq_lcdc: bool,
 }
 
 enum MapArea {
@@ -59,6 +60,7 @@ impl Ppu {
             wx: 0,
             frame: [0; 160 * 144],
             counter: 0,
+            irq_lcdc: false,
         }
     }
     pub fn get_frame(&self) -> &[u8] {
@@ -277,7 +279,7 @@ impl Ppu {
 
                     let mode = if value & 0x80 > 0 { 2 } else { 0 };
                     self.stat = (self.stat & 0xf8) | mode;
-                    // self.update_mode_interrupt();
+                    self.update_mode_interrupt();
                 }
 
                 self.lcdc = value;
@@ -289,7 +291,7 @@ impl Ppu {
             0xff45 => {
                 if self.lyc != value {
                     self.lyc = value;
-                    // self.update_lyc_interrupt();
+                    self.update_lyc_interrupt();
                 }
             }
             0xff47 => self.bgp = value,
@@ -299,6 +301,33 @@ impl Ppu {
             0xff4b => self.wx = value,
 
             _ => panic!("Invalid address: 0x{:04x}", addr),
+        }
+    }
+
+    fn update_lyc_interrupt(&mut self) {
+        // LYC=LY coincidence interrupt
+        if self.ly == self.lyc {
+            self.stat |= 0x4;
+
+            if self.stat & 0x40 > 0 {
+                self.irq_lcdc = true;
+            }
+        } else {
+            self.stat &= !0x4;
+        }
+    }
+
+    /// Checks LCD mode interrupt.
+    fn update_mode_interrupt(&mut self) {
+        // Mode interrupts
+        match self.stat & 0x3 {
+            // H-Blank interrupt
+            0 if self.stat & 0x8 > 0 => self.irq_lcdc = true,
+            // V-Blank interrupt
+            1 if self.stat & 0x10 > 0 => self.irq_lcdc = true,
+            // OAM Search interrupt
+            2 if self.stat & 0x20 > 0 => self.irq_lcdc = true,
+            _ => (),
         }
     }
 
@@ -333,6 +362,7 @@ impl Ppu {
                 if self.counter >= 172 {
                     self.counter -= 172;
                     self.set_mode_flag(Mode::HBlank);
+                    self.update_mode_interrupt();
                     debug!("Render mode: drawing");
                 }
             }
@@ -346,6 +376,9 @@ impl Ppu {
                         self.set_mode_flag(Mode::SearchingOAM);
                     }
                     debug!("Render mode HBlank");
+
+                    self.update_lyc_interrupt();
+                    self.update_mode_interrupt();
                 }
             }
             Mode::VBlank => {
@@ -356,8 +389,11 @@ impl Ppu {
                     if self.ly >= 154 {
                         self.set_mode_flag(Mode::SearchingOAM);
                         self.ly = 0;
+
+                        self.update_mode_interrupt();
                     }
 
+                    self.update_lyc_interrupt();
                     debug!("Render mode VBlank");
                 }
             }

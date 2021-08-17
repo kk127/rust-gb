@@ -26,6 +26,7 @@ impl fmt::Display for CcFlag {
 
 pub struct Cpu {
     a: u8,
+    f: u8,
     b: u8,
     c: u8,
     d: u8,
@@ -49,6 +50,7 @@ impl Cpu {
     pub fn new(cartridge_name: &str) -> Self {
         Cpu {
             a: 0,
+            f: 0,
             b: 0,
             c: 0,
             d: 0,
@@ -235,7 +237,7 @@ impl Cpu {
 
         debug!("Instruction load_hl_r1 addr: {}, r1: {}", addr, reg1);
 
-        self.add_program_count(8);
+        self.add_clock(8);
     }
 
     /// Put immediate 8bit into memory8.
@@ -516,7 +518,7 @@ impl Cpu {
         self.sp = ((self.h as u16) << 8) + self.l as u16;
         debug!("Instruction load_sp_hl");
 
-        self.add_program_count(8);
+        self.add_clock(8);
     }
 
     /// Put SP + n effective address into HL.
@@ -588,7 +590,7 @@ impl Cpu {
         };
 
         let addr = self.sp;
-        let value = ((high_value as u16) << 8) + low_value as u16;
+        let value = ((high_value as u16) << 8) | low_value as u16;
 
         self.write_word(addr, value);
 
@@ -600,12 +602,15 @@ impl Cpu {
     /// nn = AF, BC, DE, HL
     /// Opcode for F1, C1, D1, E1
     fn pop_nn(&mut self, reg1: Register, reg2: Register) {
-        debug!("Instruction Pop {}{}", reg1, reg2);
-
         let low_value = self.mmu.read_byte(self.sp);
         self.sp += 1;
         let high_value = self.mmu.read_byte(self.sp);
         self.sp += 1;
+
+        debug!(
+            "Instruction Pop {}{}, high_value: 0x{:04x}, low_value: 0x{:04x}",
+            reg1, reg2, high_value, low_value
+        );
 
         match (reg1, reg2) {
             (Register::A, Register::F) => {
@@ -782,7 +787,7 @@ impl Cpu {
         let value = self.mmu.read_byte(addr);
 
         let res = self.a.wrapping_add(value).wrapping_add(c);
-        let half_carry_flag = (self.a & 0x0f) + (value & 0x0f) > 0x0f;
+        let half_carry_flag = (self.a & 0x0f) + (value & 0x0f) + c > 0x0f;
         let carry_flag = (self.a as u16) + (value as u16) + (c as u16) > 0xff;
 
         self.a = res;
@@ -813,7 +818,7 @@ impl Cpu {
         let value = self.mmu.read_byte(addr);
 
         let res = self.a.wrapping_add(value).wrapping_add(c);
-        let half_carry_flag = (self.a & 0x0f) + (value & 0x0f) > 0x0f;
+        let half_carry_flag = (self.a & 0x0f) + (value & 0x0f) + c > 0x0f;
         let carry_flag = (self.a as u16) + (value as u16) + (c as u16) > 0xff;
 
         self.a = res;
@@ -1603,7 +1608,7 @@ impl Cpu {
                 self.h = high_value;
                 self.l = low_value;
             }
-            Register::SP => self.sp = (high_value as u16) << 8 + low_value as u16,
+            Register::SP => self.sp = ((high_value as u16) << 8) + low_value as u16,
             _ => panic!("Invalid register {}", reg),
         }
 
@@ -1645,7 +1650,7 @@ impl Cpu {
                 self.h = high_value;
                 self.l = low_value;
             }
-            Register::SP => self.sp = (high_value as u16) << 8 + low_value as u16,
+            Register::SP => self.sp = ((high_value as u16) << 8) + low_value as u16,
             _ => panic!("Invalid register {}", reg),
         }
 
@@ -1889,7 +1894,7 @@ impl Cpu {
         debug!("Instruction rra");
         let carry_flag = self.a & 1 == 1;
         let c = if self.carry_flag { 1 } else { 0 };
-        self.a = (self.a >> 1) | c;
+        self.a = (self.a >> 1) | (c << 7);
 
         self.set_zero_flag(false);
         self.set_subtraction_flag(false);
@@ -1997,7 +2002,7 @@ impl Cpu {
         }
     }
 
-    /// Rotate n right ghrough Carry flag
+    /// Rotate n right through Carry flag
     /// n = A, B, C, D, E, H, L, (HL)
     ///
     /// Affected Flag
@@ -2014,7 +2019,7 @@ impl Cpu {
 
         let carry_flag = (value & 1) == 1;
 
-        let value = (value >> 1) | c;
+        let value = (value >> 1) | (c << 7);
 
         self.write_r8(reg, value);
 
@@ -2404,8 +2409,7 @@ impl Cpu {
             CcFlag::C => self.carry_flag == true,
         };
         if flag {
-            let addr = self.pc;
-            let value = self.read_word(addr);
+            let addr = self.read_word(self.pc);
             self.add_program_count(2);
 
             self.sp = self.sp.wrapping_sub(2);
@@ -2414,7 +2418,7 @@ impl Cpu {
             let pc = self.pc;
             self.write_word(sp, pc);
 
-            self.add_program_count(value);
+            self.pc = addr;
             self.add_clock(24);
         } else {
             self.add_program_count(2);
@@ -2699,7 +2703,7 @@ impl Cpu {
             0xBE => self.cp_hl(),
             0xBF => self.cp_r8(Register::A),
             // C0
-            0xC0 => self.ret_cc(CcFlag::NC),
+            0xC0 => self.ret_cc(CcFlag::NZ),
             0xC1 => self.pop_nn(Register::B, Register::C),
             0xC2 => self.jump_cc_nn(CcFlag::NZ),
             0xC3 => self.jp_nn(),
@@ -2779,18 +2783,22 @@ impl Cpu {
 
     fn set_zero_flag(&mut self, flag: bool) {
         self.zero_flag = flag;
+        self.f = (self.f & !(1 << 7)) | (u8::from(flag) << 7);
     }
 
     fn set_subtraction_flag(&mut self, flag: bool) {
         self.subtraction_flag = flag;
+        self.f = (self.f & !(1 << 6)) | (u8::from(flag) << 6);
     }
 
     fn set_half_carry_flag(&mut self, flag: bool) {
         self.half_carry_flag = flag;
+        self.f = (self.f & !(1 << 5)) | (u8::from(flag) << 5);
     }
 
     fn set_carry_flag(&mut self, flag: bool) {
         self.carry_flag = flag;
+        self.f = (self.f & !(1 << 4)) | (u8::from(flag) << 4);
     }
 
     /// Get byte from F flags
@@ -2811,19 +2819,29 @@ impl Cpu {
         res
     }
 
-    /// set flags from 8bit valuj
+    /// set flags from 8bit value
     fn set_flags_from_byte(&mut self, value: u8) {
         if (value & 0b1000_0000) > 0 {
             self.set_zero_flag(true);
+        } else {
+            self.set_zero_flag(false);
         }
+
         if (value & 0b0100_0000) > 0 {
             self.set_subtraction_flag(true);
+        } else {
+            self.set_subtraction_flag(false);
         }
+
         if (value & 0b0010_0000) > 0 {
             self.set_half_carry_flag(true);
+        } else {
+            self.set_half_carry_flag(false);
         }
         if (value & 0b0001_0000) > 0 {
             self.set_carry_flag(true);
+        } else {
+            self.set_carry_flag(false);
         }
     }
 

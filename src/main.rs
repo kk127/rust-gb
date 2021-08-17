@@ -17,8 +17,8 @@ fn main() {
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        // .window("gbr", 320, 288)
-        .window("gbr", 940, 844)
+        .window("gbr", 160, 144)
+        // .window("gbr", 940, 844)
         .position_centered()
         .build()
         .unwrap();
@@ -32,7 +32,7 @@ fn main() {
         .unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let mut cpu = Cpu::new("picture.gb");
+    let mut cpu = Cpu::new("02-interrupts.gb");
 
     let mut step_count: u64 = 0;
     'running: loop {

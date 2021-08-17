@@ -7,6 +7,7 @@ pub struct Mmu {
     ram: [u8; 0x2000],
     interrupt_flag: u8,
     interrupt_enable: u8,
+    hram: [u8; 0x7f],
 }
 
 impl Mmu {
@@ -17,6 +18,7 @@ impl Mmu {
             ram: [0; 0x2000],
             interrupt_flag: 0,
             interrupt_enable: 0,
+            hram: [0; 0x7f],
         }
     }
 
@@ -29,7 +31,10 @@ impl Mmu {
             0xe000..=0xfdff => self.ram[((addr - 0x2000) & 0x1fff) as usize],
             0xfe00..=0xfe9f => self.ppu.read(addr),
             0xfea0..=0xfeff => 0xff, // Not usable
+            0xff0f => self.interrupt_flag,
+            0xff80..=0xfffe => self.hram[(addr & 0x7f) as usize],
             0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.read(addr),
+            0xffff => self.interrupt_enable,
             _ => todo!(),
         }
     }
@@ -45,6 +50,7 @@ impl Mmu {
             0xfea0..=0xfeff => (), // Not usable
             0xff0f => self.interrupt_flag = value,
             0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.write(addr, value),
+            0xff80..=0xfffe => self.hram[(addr & 0x7f) as usize] = value,
             0xffff => self.interrupt_enable = value,
             _ => (),
         }
@@ -52,5 +58,10 @@ impl Mmu {
 
     pub fn update(&mut self, clock: u8) {
         self.ppu.update(clock);
+
+        if self.ppu.irq_lcdc {
+            self.interrupt_flag |= 0x2;
+            self.ppu.irq_lcdc = false;
+        }
     }
 }
