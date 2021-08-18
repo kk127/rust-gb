@@ -10,15 +10,15 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
 fn main() {
-    env::set_var("RUST_LOG", "info");
+    env::set_var("RUST_LOG", "debug");
     env_logger::init();
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        .window("gbr", 160, 144)
-        // .window("gbr", 940, 844)
+        // .window("gbr", 160, 144)
+        .window("gbr", 480, 432)
         .position_centered()
         .build()
         .unwrap();
@@ -32,7 +32,7 @@ fn main() {
         .unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let mut cpu = Cpu::new("02-interrupts.gb");
+    let mut cpu = Cpu::new("cpu_instrs.gb");
 
     let mut step_count: u64 = 0;
     'running: loop {

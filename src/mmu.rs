@@ -1,12 +1,13 @@
 use crate::cartridge::Cartridge;
+use crate::cpu::Interrupt;
 use crate::ppu::Ppu;
 
 pub struct Mmu {
     cartridge: Cartridge,
     pub ppu: Ppu,
     ram: [u8; 0x2000],
-    interrupt_flag: u8,
-    interrupt_enable: u8,
+    pub interrupt_flag: u8,
+    pub interrupt_enable: u8,
     hram: [u8; 0x7f],
 }
 
@@ -19,6 +20,17 @@ impl Mmu {
             interrupt_flag: 0,
             interrupt_enable: 0,
             hram: [0; 0x7f],
+        }
+    }
+
+    #[rustfmt::skip]
+    pub fn reset_interrupt(&mut self, interrupt_type: Interrupt) {
+        match interrupt_type {
+            Interrupt::VBlank  => self.interrupt_flag &= 0b1111_1110,
+            Interrupt::LCDStat => self.interrupt_flag &= 0b1111_1101,
+            Interrupt::Timer   => self.interrupt_flag &= 0b1111_1011,
+            Interrupt::Serial  => self.interrupt_flag &= 0b1111_0111,
+            Interrupt::Joypad  => self.interrupt_flag &= 0b1110_1111,
         }
     }
 
@@ -58,6 +70,11 @@ impl Mmu {
 
     pub fn update(&mut self, clock: u8) {
         self.ppu.update(clock);
+
+        if self.ppu.irq_vblank {
+            self.interrupt_flag |= 0x1;
+            self.ppu.irq_vblank = false;
+        }
 
         if self.ppu.irq_lcdc {
             self.interrupt_flag |= 0x2;

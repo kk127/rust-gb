@@ -17,6 +17,7 @@ pub struct Ppu {
     frame: [u8; 160 * 144],
     counter: u16,
     pub irq_lcdc: bool,
+    pub irq_vblank: bool,
 }
 
 enum MapArea {
@@ -61,6 +62,7 @@ impl Ppu {
             frame: [0; 160 * 144],
             counter: 0,
             irq_lcdc: false,
+            irq_vblank: false,
         }
     }
     pub fn get_frame(&self) -> &[u8] {
@@ -143,10 +145,10 @@ impl Ppu {
 
     fn set_mode_flag(&mut self, mode: Mode) {
         match mode {
-            Mode::HBlank => self.stat = self.stat & 0xfc,
-            Mode::VBlank => self.stat = (self.stat & 0xfc) | 1,
-            Mode::SearchingOAM => self.stat = (self.stat & 0xfc) | 2,
-            Mode::Drawing => self.stat = (self.stat & 0xfc) | 3,
+            Mode::HBlank => self.stat = self.stat & 0xf8,
+            Mode::VBlank => self.stat = (self.stat & 0xf8) | 1,
+            Mode::SearchingOAM => self.stat = (self.stat & 0xf8) | 2,
+            Mode::Drawing => self.stat = (self.stat & 0xf8) | 3,
         }
     }
 
@@ -341,6 +343,7 @@ impl Ppu {
             "bgp: {}, obp0: {}, obp1: {}, wy: {}, wx: {}",
             self.bgp, self.obp0, self.obp1, self.wy, self.wx
         );
+        debug!("mmu_clock: {}, update_clock: {}", self.counter, clock);
 
         if !self.is_lcd_and_ppu_enable() {
             debug!("LCD and PPU is not enable");
@@ -372,6 +375,7 @@ impl Ppu {
                     self.ly += 1;
                     if self.ly >= 144 {
                         self.set_mode_flag(Mode::VBlank);
+                        self.irq_vblank = true;
                     } else {
                         self.set_mode_flag(Mode::SearchingOAM);
                     }

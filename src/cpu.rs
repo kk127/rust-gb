@@ -6,6 +6,15 @@ use crate::mmu::Mmu;
 use crate::register::Register;
 use crate::utils::get_addr_from_registers;
 
+#[derive(Copy, Clone, Debug)]
+pub enum Interrupt {
+    VBlank,
+    LCDStat,
+    Timer,
+    Serial,
+    Joypad,
+}
+
 #[derive(Clone, Copy)]
 enum CcFlag {
     NZ,
@@ -44,6 +53,7 @@ pub struct Cpu {
     clock: u32,
     ime: bool,
     halt: bool,
+    total_elapsed_clock: u32, // for debug
 }
 
 impl Cpu {
@@ -68,6 +78,7 @@ impl Cpu {
             clock: 0,
             ime: false,
             halt: false,
+            total_elapsed_clock: 0,
         }
     }
 
@@ -106,14 +117,77 @@ impl Cpu {
             "d: 0x{:02x}, e: 0x{:02x}, h: 0x{:02x}, l: 0x{:02x}",
             self.d, self.e, self.h, self.l
         );
+        debug!("halted: {}", self.halt);
 
-        self.add_program_count(1);
-        let before_clock = self.clock;
-        self.exec(opcode);
-        let after_clock = self.clock;
-        let elapse_clock = after_clock - before_clock;
+        let mut elapse_clock = 0;
+        if self.halt {
+            elapse_clock += 4;
+            self.add_clock(4);
+        } else {
+            self.add_program_count(1);
+            let before_clock = self.clock;
+            self.exec(opcode);
+            let after_clock = self.clock;
+            elapse_clock = after_clock - before_clock;
+        }
+
         self.mmu.update(elapse_clock as u8);
+
+        debug!(
+            "ime: {}, interrupt_flag: 0b{:08b}, interrupt_enable: 0b{:08b}",
+            self.ime, self.mmu.interrupt_flag, self.mmu.interrupt_enable
+        );
+
+        if self.ime {
+            self.handle_interrupt();
+            // self.mmu.update(8);
+            // elapse_clock += 8;
+        }
+
+        self.total_elapsed_clock += elapse_clock as u32;
+        debug!("total_elapsed_clock: {}", self.clock);
         elapse_clock as u16
+    }
+
+    fn handle_interrupt(&mut self) {
+        let interrupt_source = self.mmu.interrupt_flag & self.mmu.interrupt_enable;
+        for bit in 0..=4 {
+            let interrupt_type = match interrupt_source & (1 << bit) {
+                0x01 => Interrupt::VBlank,
+                0x02 => Interrupt::LCDStat,
+                0x04 => Interrupt::Timer,
+                0x08 => Interrupt::Serial,
+                0x10 => Interrupt::Joypad,
+                _ => continue,
+            };
+
+            self.exec_interrupt(interrupt_type);
+        }
+    }
+
+    fn exec_interrupt(&mut self, interrupt_type: Interrupt) {
+        self.ime = false;
+        self.halt = false;
+        self.mmu.reset_interrupt(interrupt_type);
+
+        let addr = match interrupt_type {
+            Interrupt::VBlank => 0x40,
+            Interrupt::LCDStat => 0x48,
+            Interrupt::Timer => 0x50,
+            Interrupt::Serial => 0x58,
+            Interrupt::Joypad => 0x60,
+        };
+
+        self.sp = self.sp.wrapping_sub(2);
+        let sp = self.sp;
+        let pc = self.pc;
+
+        self.write_word(sp, pc);
+        self.add_clock(20); // todo
+        self.pc = addr;
+
+        self.mmu.update(20);
+        debug!("Interrupt {:?}, addr: 0x{:04x}", interrupt_type, self.pc);
     }
 
     /// Put value n into nn.
@@ -2486,6 +2560,7 @@ impl Cpu {
     /// enable interrupts.
     /// Opcode for D9
     fn reti(&mut self) {
+        debug!("Instruction reti");
         let sp = self.sp;
         let addr = self.read_word(sp);
         self.pc = addr;
