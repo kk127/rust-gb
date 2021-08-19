@@ -1,5 +1,6 @@
 use env_logger;
 use rust_gb::cpu::Cpu;
+use rust_gb::joypad;
 // use sdl2::pixels::PixelFormatEnum;
 use std::env;
 use std::thread;
@@ -8,6 +9,30 @@ use std::time;
 use log::{debug, info};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+
+fn translate_keycode(key: Keycode) -> Option<joypad::Key> {
+    match key {
+        Keycode::Down => Some(joypad::Key::Down),
+        Keycode::Up => Some(joypad::Key::Up),
+        Keycode::Left => Some(joypad::Key::Left),
+        Keycode::Right => Some(joypad::Key::Right),
+        Keycode::Return => Some(joypad::Key::Start),
+        Keycode::RShift => Some(joypad::Key::Select),
+        Keycode::X => Some(joypad::Key::A),
+        Keycode::Z => Some(joypad::Key::B),
+        _ => None,
+    }
+}
+
+/// Handles key down event.
+fn handle_keydown(cpu: &mut Cpu, key: Keycode) {
+    translate_keycode(key).map(|k| cpu.mmu.joypad.keydown(k));
+}
+
+/// Handles key up event.
+fn handle_keyup(cpu: &mut Cpu, key: Keycode) {
+    translate_keycode(key).map(|k| cpu.mmu.joypad.keyup(k));
+}
 
 fn main() {
     env::set_var("RUST_LOG", "info");
@@ -35,7 +60,7 @@ fn main() {
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     // let mut cpu = Cpu::new("cpu_instrs.gb");
-    let mut cpu = Cpu::new("timer_clock.gb");
+    let mut cpu = Cpu::new("meta_sprite.gb");
 
     let mut step_count: u64 = 0;
     'running: loop {
@@ -73,6 +98,24 @@ fn main() {
         canvas.copy(&texture, None, None).unwrap();
         canvas.present();
 
+        // for event in event_pump.poll_iter() {
+        //     match event {
+        //         Event::Quit { .. }
+        //         | Event::KeyDown {
+        //             keycode: Some(Keycode::Escape),
+        //             ..
+        //         } => break 'running,
+        //         // Event::KeyDown {
+        //         //     keycode: Some(keycode),
+        //         //     ..
+        //         // } => handle_keydown(&mut cpu, keycode),
+        //         // Event::KeyUp {
+        //         //     keycode: Some(keycode),
+        //         //     ..
+        //         // } => handle_keyup(&mut cpu, keycode),
+        //         _ => (),
+        //     }
+        // }
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -80,14 +123,14 @@ fn main() {
                     keycode: Some(Keycode::Escape),
                     ..
                 } => break 'running,
-                // Event::KeyDown {
-                //     keycode: Some(keycode),
-                //     ..
-                // } => handle_keydown(&mut cpu, keycode),
-                // Event::KeyUp {
-                //     keycode: Some(keycode),
-                //     ..
-                // } => handle_keyup(&mut cpu, keycode),
+                Event::KeyDown {
+                    keycode: Some(keycode),
+                    ..
+                } => handle_keydown(&mut cpu, keycode),
+                Event::KeyUp {
+                    keycode: Some(keycode),
+                    ..
+                } => handle_keyup(&mut cpu, keycode),
                 _ => (),
             }
         }

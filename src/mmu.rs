@@ -1,11 +1,13 @@
 use crate::cartridge::Cartridge;
 use crate::cpu::Interrupt;
+use crate::joypad::Joypad;
 use crate::ppu::Ppu;
 use crate::timer::Timer;
 
 pub struct Mmu {
     cartridge: Cartridge,
     pub ppu: Ppu,
+    pub joypad: Joypad,
     timer: Timer,
     ram: [u8; 0x2000],
     pub interrupt_flag: u8,
@@ -18,6 +20,7 @@ impl Mmu {
         Mmu {
             cartridge: Cartridge::new(cartridge_name),
             ppu: Ppu::new(),
+            joypad: Joypad::new(),
             timer: Timer::new(),
             ram: [0; 0x2000],
             interrupt_flag: 0,
@@ -60,6 +63,7 @@ impl Mmu {
             0xe000..=0xfdff => self.ram[((addr - 0x2000) & 0x1fff) as usize],
             0xfe00..=0xfe9f => self.ppu.read(addr),
             0xfea0..=0xfeff => 0xff, // Not usable
+            0xff00 => self.joypad.read_byte(addr),
             0xff0f => self.interrupt_flag,
             0xff04..=0xff07 => self.timer.read(addr),
             0xff80..=0xfffe => self.hram[(addr & 0x7f) as usize],
@@ -78,6 +82,7 @@ impl Mmu {
             0xe000..=0xfdff => self.ram[((addr - 0x2000) & 0x1fff) as usize] = value,
             0xfe00..=0xfe9f => self.ppu.write(addr, value),
             0xfea0..=0xfeff => (), // Not usable
+            0xff00 => self.joypad.write_byte(addr, value),
             0xff0f => self.interrupt_flag = value,
             0xff04..=0xff07 => self.timer.write(addr, value),
             0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.write(addr, value),
@@ -105,6 +110,11 @@ impl Mmu {
         if self.timer.is_irq_timer() {
             self.interrupt_flag |= 0x4;
             self.timer.set_irq_timer(false);
+        }
+
+        if self.joypad.irq {
+            self.interrupt_flag |= 0x10;
+            self.joypad.irq = false;
         }
     }
 }

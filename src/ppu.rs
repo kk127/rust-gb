@@ -292,80 +292,6 @@ impl Ppu {
         }
     }
 
-    // fn render_sprites(&mut self) {
-    //     let mut n_sprites = 0;
-    //     let height = if self.lcdc & 0x4 > 0 { 16 } else { 8 };
-
-    //     for i in 0..40 {
-    //         // Parse OAM entry
-    //         let entry_addr = i << 2;
-    //         let sprite_y = self.oam[entry_addr];
-    //         let sprite_x = self.oam[entry_addr + 1];
-    //         let flags = self.oam[entry_addr + 3];
-
-    //         let obj_prio = flags & 0x80 > 0;
-    //         let flip_y = flags & 0x40 > 0;
-    //         let flip_x = flags & 0x20 > 0;
-    //         let palette = if flags & 0x10 > 0 {
-    //             self.obp1
-    //         } else {
-    //             self.obp0
-    //         };
-
-    //         debug!(
-    //             "sprite_x: {}, sprite_y: {}, sprites_num: {}, sprite_flag: 0x{:04x}, height: {}",
-    //             sprite_x, sprite_y, n_sprites, flags, height
-    //         );
-    //         debug!(
-    //             "self.ly + 16 : {}, sprite_y: {} self.ly + 16: {}",
-    //             self.ly + 16 - height,
-    //             sprite_y,
-    //             self.ly + 16
-    //         );
-    //         // Check if sprite is visible on this scanline
-    //         if sprite_y <= self.ly + 16 - height || sprite_y > self.ly + 16 {
-    //             continue;
-    //         }
-    //         debug!("After sprite visible y");
-
-    //         // Up to 10 sprites can be rendered on one scanline
-    //         n_sprites += 1;
-    //         if n_sprites > 10 {
-    //             break;
-    //         }
-    //         debug!("After num sprite");
-
-    //         // Check if sprite is within the screen
-    //         if sprite_x == 0 || sprite_x > 160 + 8 - 1 {
-    //             continue;
-    //         }
-
-    //         debug!("After visible check");
-
-    //         // Tile number
-    //         let tile_no = if self.lcdc & 0x4 > 0 {
-    //             // 8x16 sprite
-    //             if (self.ly + 8 < sprite_y) ^ flip_y {
-    //                 self.oam[entry_addr + 2] & 0xfe
-    //             } else {
-    //                 self.oam[entry_addr + 2] | 0x01
-    //             }
-    //         } else {
-    //             // 8x8 sprite
-    //             self.oam[entry_addr + 2]
-    //         };
-
-    //         // Y-offset within the tile
-    //         let offset_y = if flip_y {
-    //             7 - ((self.ly + 16 - sprite_y) & 0x7)
-    //         } else {
-    //             (self.ly + 16 - sprite_y) & 0x7
-    //         };
-
-    //         // Fetch tile data
-    //     }
-    // }
-
     fn render_sprites(&mut self) {
         let mut sprites_num = 0;
         let height = if self.lcdc & 0x4 > 0 { 16 } else { 8 };
@@ -441,30 +367,6 @@ impl Ppu {
         if self.lcdc & 0x2 > 0 {
             self.render_sprites();
         }
-        // let mut tile_x = self.scx >> 3;
-        // let tile_y = (self.scy.wrapping_add(self.ly)) >> 3;
-        // let mut offset_x = self.scx & 0x07;
-        // let offset_y = (self.scy.wrapping_add(self.ly)) & 0x07;
-
-        // let (mut tile_row_low, mut tile_row_high) = self.get_tile_row(tile_x, tile_y, offset_y);
-        // for x in 0..160 {
-        //     if offset_x == 8 {
-        //         offset_x = 0;
-        //         tile_x = tile_x.wrapping_add(1);
-        //         let tile = self.get_tile_row(tile_x, tile_y, offset_y);
-        //         tile_row_low = tile.0;
-        //         tile_row_high = tile.1;
-        //     }
-        //     let color = self.get_pixel_color(tile_row_low, tile_row_high, offset_x);
-        //     let index = (x as usize) + (self.ly as usize) * 160;
-        //     debug!(
-        //         "render scan tile_x: {}, tile_y: {}, offset_x: {}, offset_y: {}, x: {}, color: {}",
-        //         tile_x, tile_y, offset_x, offset_y, x, color
-        //     );
-        //     debug!("tile_low, tile_high: {}, {}", tile_row_low, tile_row_high);
-        //     self.frame[index] = color;
-        //     offset_x += 1;
-        // }
     }
 
     pub(crate) fn read(&self, addr: u16) -> u8 {
