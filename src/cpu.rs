@@ -437,7 +437,7 @@ impl Cpu {
 
         debug!("Instruction load_c_a addr: {}, value: {}", addr, value);
 
-        self.add_program_count(1);
+        // self.add_program_count(1);
         self.add_clock(8);
     }
 

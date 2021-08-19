@@ -10,7 +10,7 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
 fn main() {
-    // env::set_var("RUST_LOG", "info");
+    env::set_var("RUST_LOG", "info");
     env_logger::init();
 
     let sdl_context = sdl2::init().unwrap();
@@ -34,7 +34,8 @@ fn main() {
         .unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let mut cpu = Cpu::new("bg_scroll_x_y.gb");
+    // let mut cpu = Cpu::new("cpu_instrs.gb");
+    let mut cpu = Cpu::new("timer_clock.gb");
 
     let mut step_count: u64 = 0;
     'running: loop {

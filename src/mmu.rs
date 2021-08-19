@@ -37,6 +37,20 @@ impl Mmu {
         }
     }
 
+    fn do_dma(&mut self, val: u8) {
+        if val < 0x80 || 0xdf < val {
+            panic!("Invalid DMA source address")
+        }
+
+        let src_base = (val as u16) << 8;
+        let dst_base = 0xfe00;
+
+        for i in 0..0xa0 {
+            let tmp = self.read_byte(src_base | i);
+            self.write_byte(dst_base | i, tmp);
+        }
+    }
+
     pub fn read_byte(&self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x7fff => self.cartridge.read(addr),
@@ -67,6 +81,7 @@ impl Mmu {
             0xff0f => self.interrupt_flag = value,
             0xff04..=0xff07 => self.timer.write(addr, value),
             0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.write(addr, value),
+            0xff46 => self.do_dma(value),
             0xff80..=0xfffe => self.hram[(addr & 0x7f) as usize] = value,
             0xffff => self.interrupt_enable = value,
             _ => (),
