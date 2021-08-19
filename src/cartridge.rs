@@ -7,7 +7,7 @@ pub struct Cartridge {
     rom: Vec<u8>,
     ram: Vec<u8>,
     mode_flag: bool,
-    ram_enable: bool,
+    is_ram_enable: bool,
     rom_bank_no: u8,
     ram_bank_no: u8,
     num_rom_banks: u8,
@@ -96,7 +96,7 @@ impl Cartridge {
             rom,
             ram: vec![0; ram_size_kb * 1024],
             mode_flag: false,
-            ram_enable: false,
+            is_ram_enable: false,
             rom_bank_no: 0,
             ram_bank_no: 0,
             num_rom_banks,
@@ -137,7 +137,7 @@ impl Cartridge {
             }
             // RAM bank 00-03
             0xa000..=0xbfff => {
-                if !self.ram_enable {
+                if !self.is_ram_enable {
                     return 0xff;
                 }
                 let offset = (8 * 1024) * self.ram_bank_no() as usize;
@@ -149,12 +149,12 @@ impl Cartridge {
 
     pub(crate) fn write(&mut self, addr: u16, value: u8) {
         match addr {
-            0x0000..=0x1fff => self.ram_enable = value & 0x0f == 0x0a,
+            0x0000..=0x1fff => self.is_ram_enable = value & 0x0f == 0x0a,
             0x2000..=0x3fff => self.rom_bank_no = value & 0x1f,
             0x4000..=0x5fff => self.ram_bank_no = value & 0x03,
             0x6000..=0x7fff => self.mode_flag = value & 0x01 == 0x01,
             0xa000..=0xbfff => {
-                if !self.ram_enable {
+                if !self.is_ram_enable {
                     return;
                 }
                 let offset = (8 * 1024) * self.ram_bank_no() as usize;

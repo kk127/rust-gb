@@ -10,15 +10,17 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
 fn main() {
-    env::set_var("RUST_LOG", "debug");
+    // env::set_var("RUST_LOG", "info");
     env_logger::init();
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
+        // .window("gbr", 960, 864)
         // .window("gbr", 160, 144)
-        .window("gbr", 480, 432)
+        // .window("gbr", 480, 432)
+        .window("gbr", 320, 288)
         .position_centered()
         .build()
         .unwrap();
@@ -32,7 +34,7 @@ fn main() {
         .unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let mut cpu = Cpu::new("cpu_instrs.gb");
+    let mut cpu = Cpu::new("bg_scroll_x_y.gb");
 
     let mut step_count: u64 = 0;
     'running: loop {
@@ -51,7 +53,7 @@ fn main() {
         texture
             .with_lock(None, |buf: &mut [u8], pitch: usize| {
                 let fb = cpu.mmu.ppu.get_frame();
-                println!("frame {}", fb.len());
+                // println!("frame {}", fb.len());
 
                 for y in 0..144 {
                     for x in 0..160 {
@@ -89,7 +91,7 @@ fn main() {
             }
         }
 
-        let wait = time::Duration::from_micros(1000000 / 60);
+        let wait = time::Duration::from_micros(16742); // 1s / 59.73Hz * 10**6 = 16742.0056923 ms
         let elapsed = now.elapsed();
 
         if wait > elapsed {

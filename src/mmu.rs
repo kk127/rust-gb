@@ -1,10 +1,12 @@
 use crate::cartridge::Cartridge;
 use crate::cpu::Interrupt;
 use crate::ppu::Ppu;
+use crate::timer::Timer;
 
 pub struct Mmu {
     cartridge: Cartridge,
     pub ppu: Ppu,
+    timer: Timer,
     ram: [u8; 0x2000],
     pub interrupt_flag: u8,
     pub interrupt_enable: u8,
@@ -16,6 +18,7 @@ impl Mmu {
         Mmu {
             cartridge: Cartridge::new(cartridge_name),
             ppu: Ppu::new(),
+            timer: Timer::new(),
             ram: [0; 0x2000],
             interrupt_flag: 0,
             interrupt_enable: 0,
@@ -44,10 +47,11 @@ impl Mmu {
             0xfe00..=0xfe9f => self.ppu.read(addr),
             0xfea0..=0xfeff => 0xff, // Not usable
             0xff0f => self.interrupt_flag,
+            0xff04..=0xff07 => self.timer.read(addr),
             0xff80..=0xfffe => self.hram[(addr & 0x7f) as usize],
             0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.read(addr),
             0xffff => self.interrupt_enable,
-            _ => todo!(),
+            _ => 0xff,
         }
     }
 
@@ -61,6 +65,7 @@ impl Mmu {
             0xfe00..=0xfe9f => self.ppu.write(addr, value),
             0xfea0..=0xfeff => (), // Not usable
             0xff0f => self.interrupt_flag = value,
+            0xff04..=0xff07 => self.timer.write(addr, value),
             0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.write(addr, value),
             0xff80..=0xfffe => self.hram[(addr & 0x7f) as usize] = value,
             0xffff => self.interrupt_enable = value,
@@ -70,15 +75,21 @@ impl Mmu {
 
     pub fn update(&mut self, clock: u8) {
         self.ppu.update(clock);
+        self.timer.update(clock);
 
-        if self.ppu.irq_vblank {
+        if self.ppu.is_irq_vblank() {
             self.interrupt_flag |= 0x1;
-            self.ppu.irq_vblank = false;
+            self.ppu.set_irq_vblank(false);
         }
 
-        if self.ppu.irq_lcdc {
+        if self.ppu.is_irq_lcdc() {
             self.interrupt_flag |= 0x2;
-            self.ppu.irq_lcdc = false;
+            self.ppu.set_irq_lcdc(false);
+        }
+
+        if self.timer.is_irq_timer() {
+            self.interrupt_flag |= 0x4;
+            self.timer.set_irq_timer(false);
         }
     }
 }

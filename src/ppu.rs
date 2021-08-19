@@ -16,8 +16,8 @@ pub struct Ppu {
     wx: u8,
     frame: [u8; 160 * 144],
     counter: u16,
-    pub irq_lcdc: bool,
-    pub irq_vblank: bool,
+    irq_lcdc: bool,
+    irq_vblank: bool,
 }
 
 enum MapArea {
@@ -69,6 +69,22 @@ impl Ppu {
         &self.frame
     }
 
+    pub fn is_irq_vblank(&self) -> bool {
+        self.irq_vblank
+    }
+
+    pub fn is_irq_lcdc(&self) -> bool {
+        self.irq_lcdc
+    }
+
+    pub fn set_irq_vblank(&mut self, flag: bool) {
+        self.irq_vblank = flag;
+    }
+
+    pub fn set_irq_lcdc(&mut self, flag: bool) {
+        self.irq_lcdc = flag;
+    }
+
     fn is_lcd_and_ppu_enable(&self) -> bool {
         ((self.lcdc >> 7) & 1) == 1
     }
@@ -109,7 +125,7 @@ impl Ppu {
         ((self.lcdc >> 1) & 1) == 1
     }
 
-    fn is_bg_window_enalbe(&self) -> bool {
+    fn is_bg_window_enable(&self) -> bool {
         (self.lcdc & 1) == 1
     }
 
@@ -310,10 +326,7 @@ impl Ppu {
         // LYC=LY coincidence interrupt
         if self.ly == self.lyc {
             self.stat |= 0x4;
-
-            if self.stat & 0x40 > 0 {
-                self.irq_lcdc = true;
-            }
+            self.irq_lcdc = true;
         } else {
             self.stat &= !0x4;
         }
