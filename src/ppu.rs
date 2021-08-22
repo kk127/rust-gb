@@ -211,9 +211,10 @@ impl Ppu {
     }
 
     fn get_sprite_tile_row(&mut self, tile_no: u8, offset_y: u8) -> (u8, u8) {
-        let tile_addr = tile_no * 16 + offset_y * 2;
-        let tile_row_low = self.vram[tile_addr as usize];
-        let tile_row_high = self.vram[(tile_addr + 1) as usize];
+        // println!("tile_no: {}, offset_y: {}", tile_no, offset_y);
+        let tile_addr = (tile_no as usize) * 16 + (offset_y as usize) * 2;
+        let tile_row_low = self.vram[tile_addr];
+        let tile_row_high = self.vram[(tile_addr + 1)];
 
         (tile_row_low, tile_row_high)
     }
@@ -258,7 +259,9 @@ impl Ppu {
         let wy = self.wy;
 
         for x in 0..160 {
-            let window_flag = (wy <= self.ly) && (wx <= self.scx + x) && (self.is_window_enable());
+            let window_flag = (wy <= self.ly)
+                && (wx as u16 <= (self.scx as u16) + (x as u16))
+                && (self.is_window_enable());
 
             let mut pixel_x = 0;
             let mut pixel_y = 0;
@@ -354,6 +357,7 @@ impl Ppu {
                 }
                 let color = self.get_sprite_color(tile_color, sprite_flag);
                 debug!("Sprite color: {}, x: {}", color, pixel_x);
+                println!("Sprite color: {}, x: {}", color, pixel_x);
                 let index = (pixel_x as usize) + (self.ly as usize) * 160;
                 self.frame[index] = color;
             }

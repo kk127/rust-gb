@@ -424,7 +424,7 @@ impl Cpu {
 
         debug!("Instruction load_a_c addr: {}, value: {}", addr, value);
 
-        self.add_program_count(1);
+        // self.add_program_count(1);
         self.add_clock(8);
     }
 
@@ -2261,7 +2261,7 @@ impl Cpu {
 
         self.add_program_count(1);
         if reg == Register::HL {
-            self.add_clock(16);
+            self.add_clock(12);
         } else {
             self.add_clock(8);
         }

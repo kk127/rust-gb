@@ -42,10 +42,10 @@ fn main() {
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        // .window("gbr", 960, 864)
+        .window("gbr", 960, 864)
         // .window("gbr", 160, 144)
         // .window("gbr", 480, 432)
-        .window("gbr", 320, 288)
+        // .window("gbr", 320, 288)
         .position_centered()
         .build()
         .unwrap();
@@ -59,13 +59,13 @@ fn main() {
         .unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    // let mut cpu = Cpu::new("cpu_instrs.gb");
-    let mut cpu = Cpu::new("meta_sprite.gb");
+    // let mut cpu = Cpu::new("joypad.gb");
+    let mut cpu = Cpu::new("DONKEYKO.GB");
 
     let mut step_count: u64 = 0;
     'running: loop {
         // for _ in 0..1000 {
-        info!("loop");
+        // info!("loop");
         let now = time::Instant::now();
         let mut elapsed_tick: u32 = 0;
 
