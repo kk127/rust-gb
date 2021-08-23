@@ -120,6 +120,9 @@ impl Ppu {
             true => ObjSize::Rectangle,
         }
     }
+    fn is_obj_square(&self) -> bool {
+        (self.lcdc & 0x04) == 0
+    }
 
     fn is_obj_enable(&self) -> bool {
         ((self.lcdc >> 1) & 1) == 1
@@ -266,8 +269,8 @@ impl Ppu {
             let mut pixel_x = 0;
             let mut pixel_y = 0;
             if window_flag {
-                pixel_x = self.scx + x - wx;
-                pixel_y = self.ly - wy;
+                pixel_x = (x as u8).wrapping_sub(wx);
+                pixel_y = self.ly.wrapping_sub(wy);
             } else {
                 pixel_x = self.scx.wrapping_add(x);
                 pixel_y = self.scy.wrapping_add(self.ly);
@@ -302,16 +305,21 @@ impl Ppu {
         for i in 0..40 {
             let sprite_addr = i * 4;
 
-            let sprite_y = self.oam[sprite_addr];
-            let sprite_x = self.oam[sprite_addr + 1];
-            let tile_index = self.oam[sprite_addr + 2];
+            let sprite_y = self.oam[sprite_addr].wrapping_sub(16);
+            let sprite_x = self.oam[sprite_addr + 1].wrapping_sub(8);
+            let tile_no =
+                self.oam[sprite_addr + 2] & if self.is_obj_square() { 0xff } else { 0xfe };
             let sprite_flag = self.oam[sprite_addr + 3];
 
             let bg_window_priority_flag = sprite_flag & 0x80 > 0;
             let flip_y_flag = sprite_flag & 0x40 > 0;
             let flip_x_flag = sprite_flag & 0x20 > 0;
 
-            if !self.is_sprite_visible(sprite_x, sprite_y, height) {
+            if (sprite_y > self.ly) || (self.ly >= sprite_y + height) {
+                continue;
+            }
+
+            if (160 <= sprite_x) && (sprite_x <= 248) {
                 continue;
             }
 
@@ -320,45 +328,43 @@ impl Ppu {
                 break;
             }
 
-            let tile_no = if self.lcdc & 0x4 > 0 {
-                if (self.ly + 8 < sprite_y) ^ flip_y_flag {
-                    self.oam[sprite_addr + 2] & 0xfe
-                } else {
-                    self.oam[sprite_addr + 2] | 0x01
-                }
-            } else {
-                self.oam[sprite_addr + 2]
-            };
+            // let tile_no = if self.lcdc & 0x4 > 0 {
+            //     if (self.ly + 8 < sprite_y) ^ flip_y_flag {
+            //         self.oam[sprite_addr + 2] & 0xfe
+            //     } else {
+            //         self.oam[sprite_addr + 2] | 0x01
+            //     }
+            // } else {
+            //     self.oam[sprite_addr + 2]
+            // };
 
             let offset_y = if flip_y_flag {
-                7 - ((self.ly + 16 - sprite_y) & 0x7)
+                height - 1 - (self.ly - sprite_y)
             } else {
-                (self.ly + 16 - sprite_y) & 0x7
+                self.ly - sprite_y
             };
 
             let (tile_row_low, tile_row_high) = self.get_sprite_tile_row(tile_no, offset_y);
 
             for offset_x in 0..8 {
-                if sprite_x + offset_x < 8 {
-                    continue;
-                }
-                let pixel_x = sprite_x + offset_x - 8;
-                if pixel_x >= 160 {
+                if sprite_x.wrapping_add(offset_x) >= 160 {
                     break;
                 }
+                let pixel_x = sprite_x.wrapping_add(offset_x);
+
                 let index_x = if flip_x_flag { 7 - offset_x } else { offset_x };
                 let tile_color = self.get_tile_color(tile_row_low, tile_row_high, index_x);
 
                 if tile_color == 0 {
                     continue;
                 }
-                if self.frame[pixel_x as usize] != 0 && bg_window_priority_flag {
+                let index = (pixel_x as usize) + (self.ly as usize) * 160;
+                if self.frame[index] != 0xff && bg_window_priority_flag {
                     continue;
                 }
                 let color = self.get_sprite_color(tile_color, sprite_flag);
                 debug!("Sprite color: {}, x: {}", color, pixel_x);
-                println!("Sprite color: {}, x: {}", color, pixel_x);
-                let index = (pixel_x as usize) + (self.ly as usize) * 160;
+                // println!("Sprite color: {}, x: {}, ly: {}", color, pixel_x, self.ly);
                 self.frame[index] = color;
             }
         }
@@ -368,7 +374,7 @@ impl Ppu {
         if self.lcdc & 0x1 > 0 {
             self.render_bg();
         }
-        if self.lcdc & 0x2 > 0 {
+        if self.is_obj_enable() {
             self.render_sprites();
         }
     }

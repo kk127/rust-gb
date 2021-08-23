@@ -42,9 +42,9 @@ fn main() {
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        .window("gbr", 960, 864)
+        // .window("gbr", 960, 864)
         // .window("gbr", 160, 144)
-        // .window("gbr", 480, 432)
+        .window("gbr", 480, 432)
         // .window("gbr", 320, 288)
         .position_centered()
         .build()
@@ -60,7 +60,20 @@ fn main() {
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     // let mut cpu = Cpu::new("joypad.gb");
-    let mut cpu = Cpu::new("DONKEYKO.GB");
+    // let mut cpu = Cpu::new("cpu_instrs.gb");
+    // let mut cpu = Cpu::new("mem_timing.gb");
+    // let mut cpu = Cpu::new("02-write_timing.gb");
+    // let mut cpu = Cpu::new("meta_sprite.gb");
+    // let mut cpu = Cpu::new("DONKEYKO.GB");
+    // let mut cpu = Cpu::new("TETRIS.GB");
+    // let mut cpu = Cpu::new("MARIOLAN.GB");
+    // let mut cpu = Cpu::new("GAMEBOY.GB");
+    // let mut cpu = Cpu::new("POKEMON.GB");
+    // let mut cpu = Cpu::new("PM_CRYST.GBC");
+    // let mut cpu = Cpu::new("POKEMON_.GB");
+    // let mut cpu = Cpu::new("POKEMONRED.GB");
+    let mut cpu = Cpu::new("KIRBY'S.GB");
+    // let mut cpu = Cpu::new("ZELDANA.GBC");
 
     let mut step_count: u64 = 0;
     'running: loop {

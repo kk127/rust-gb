@@ -128,7 +128,7 @@ impl Cpu {
             let before_clock = self.clock;
             self.exec(opcode);
             let after_clock = self.clock;
-            elapse_clock = after_clock - before_clock;
+            elapse_clock = after_clock.wrapping_sub(before_clock);
         }
 
         self.mmu.update(elapse_clock as u8);

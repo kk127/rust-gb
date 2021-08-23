@@ -83,6 +83,4 @@ impl Joypad {
             _ => panic!("Invalid address: 0x{:04x}", addr),
         }
     }
-
-    fn update(&mut self, _tick: u8) {}
 }

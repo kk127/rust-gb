@@ -1,11 +1,11 @@
-use crate::cartridge::Cartridge;
+use crate::cartridge::{self, Cartridge};
 use crate::cpu::Interrupt;
 use crate::joypad::Joypad;
 use crate::ppu::Ppu;
 use crate::timer::Timer;
 
 pub struct Mmu {
-    cartridge: Cartridge,
+    cartridge: Box<dyn Cartridge>,
     pub ppu: Ppu,
     pub joypad: Joypad,
     timer: Timer,
@@ -18,7 +18,7 @@ pub struct Mmu {
 impl Mmu {
     pub fn new(cartridge_name: &str) -> Self {
         Mmu {
-            cartridge: Cartridge::new(cartridge_name),
+            cartridge: cartridge::new(cartridge_name),
             ppu: Ppu::new(),
             joypad: Joypad::new(),
             timer: Timer::new(),
@@ -41,10 +41,10 @@ impl Mmu {
     }
 
     fn do_dma(&mut self, val: u8) {
-        if val < 0x80 || 0xdf < val {
-            panic!("Invalid DMA source address")
-        }
-
+        // if val < 0x80 || 0xdf < val {
+        //     panic!("Invalid DMA source address: 0x{:04x}", val)
+        // }
+        assert!(val <= 0xf1);
         let src_base = (val as u16) << 8;
         let dst_base = 0xfe00;
 
