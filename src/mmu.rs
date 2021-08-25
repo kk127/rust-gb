@@ -5,7 +5,7 @@ use crate::ppu::Ppu;
 use crate::timer::Timer;
 
 pub struct Mmu {
-    cartridge: Box<dyn Cartridge>,
+    pub cartridge: Box<dyn Cartridge>,
     pub ppu: Ppu,
     pub joypad: Joypad,
     timer: Timer,

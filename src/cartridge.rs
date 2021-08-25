@@ -1,4 +1,6 @@
 use std::fs;
+use std::fs::File;
+use std::io::{Read, Write};
 use std::path::Path;
 
 use crate::rtc;
@@ -7,6 +9,11 @@ use log::info;
 pub trait Cartridge {
     fn read(&self, addr: u16) -> u8;
     fn write(&mut self, addr: u16, value: u8);
+    fn write_save_data(&self);
+}
+
+struct RomOnly {
+    rom: Vec<u8>,
 }
 
 struct MBC1 {
@@ -17,12 +24,14 @@ struct MBC1 {
     rom_bank_no: u8,
     ram_bank_no: u8,
     num_rom_banks: u8,
+    title: String,
 }
 pub struct MBC2 {
     rom: Vec<u8>,
     ram: Vec<u8>,
     rom_bank_no: usize,
     ram_enable: bool,
+    title: String,
 }
 struct MBC3 {
     rom: Vec<u8>,
@@ -31,6 +40,7 @@ struct MBC3 {
     ram_bank_no: u8,
     rtc: rtc::RTC,
     ram_enable: bool,
+    title: String,
 }
 
 struct MBC5 {
@@ -39,6 +49,7 @@ struct MBC5 {
     rom_bank_no: usize,
     ram_bank_no: usize,
     ram_enable: bool,
+    title: String,
 }
 
 pub fn new(cartridge_name: &str) -> Box<dyn Cartridge> {
@@ -79,10 +90,11 @@ pub fn new(cartridge_name: &str) -> Box<dyn Cartridge> {
     info!("MBC type: {}", mbc_type_name);
 
     match mbc_type {
-        0x01..=0x03 => Box::new(MBC1::new(rom)),
-        0x05 | 0x06 => Box::new(MBC2::new(rom)),
-        0x0f..=0x13 => Box::new(MBC3::new(rom)),
-        0x19..=0x1e => Box::new(MBC5::new(rom)),
+        0x00 => Box::new(RomOnly::new(rom)),
+        0x01..=0x03 => Box::new(MBC1::new(rom, &title)),
+        0x05 | 0x06 => Box::new(MBC2::new(rom, &title)),
+        0x0f..=0x13 => Box::new(MBC3::new(rom, &title)),
+        0x19..=0x1e => Box::new(MBC5::new(rom, &title)),
         _ => panic!("Invalid mbc type not implemented"),
     }
 }
@@ -126,6 +138,28 @@ fn get_mbc_type_name(mbc_type: u8) -> &'static str {
     }
 }
 
+impl Cartridge for RomOnly {
+    fn read(&self, addr: u16) -> u8 {
+        match addr {
+            0x0000..=0x7fff => self.rom[addr as usize],
+            _ => panic!("Invalid address: {}", addr),
+        }
+    }
+
+    fn write(&mut self, addr: u16, value: u8) {
+        match addr {
+            _ => {}
+        }
+    }
+    fn write_save_data(&self) {}
+}
+
+impl RomOnly {
+    fn new(rom: Vec<u8>) -> Self {
+        RomOnly { rom }
+    }
+}
+
 impl Cartridge for MBC1 {
     fn read(&self, addr: u16) -> u8 {
         match addr {
@@ -164,10 +198,16 @@ impl Cartridge for MBC1 {
             _ => unreachable!("Unexpected address: 0x{:04x}", addr),
         }
     }
+
+    fn write_save_data(&self) {
+        let save_file_path = Path::new("save_data").join(&self.title);
+        info!("Writing save file to: {:?}", &save_file_path);
+        fs::write(&save_file_path, &self.ram).unwrap();
+    }
 }
 
 impl MBC1 {
-    fn new(rom: Vec<u8>) -> Self {
+    fn new(rom: Vec<u8>, title: &str) -> Self {
         let num_rom_banks = 2 << rom[0x148];
         let ram_size_kb = match rom[0x149] {
             0x00 => 0,
@@ -188,6 +228,7 @@ impl MBC1 {
             rom_bank_no: 0,
             ram_bank_no: 0,
             num_rom_banks,
+            title: title.to_string(),
         }
     }
     fn rom_bank_no(&self) -> u8 {
@@ -254,10 +295,15 @@ impl Cartridge for MBC2 {
             _ => {}
         }
     }
+    fn write_save_data(&self) {
+        let save_file_path = Path::new("save_data").join(&self.title);
+        info!("Writing save file to: {:?}", &save_file_path);
+        fs::write(&save_file_path, &self.ram).unwrap();
+    }
 }
 
 impl MBC2 {
-    fn new(rom: Vec<u8>) -> Self {
+    fn new(rom: Vec<u8>, title: &str) -> Self {
         let num_rom_banks = 2 << rom[0x148];
 
         info!("MBC2 created");
@@ -266,6 +312,7 @@ impl MBC2 {
             ram: vec![0; 512],
             rom_bank_no: 0,
             ram_enable: false,
+            title: title.to_string(),
         }
     }
 }
@@ -332,11 +379,17 @@ impl Cartridge for MBC3 {
             _ => panic!("Invalid address: 0x{:04x}", addr),
         }
     }
+    fn write_save_data(&self) {
+        let save_file_path = Path::new("save_data").join(&self.title);
+        info!("Writing save file to: {:?}", &save_file_path);
+        fs::write(&save_file_path, &self.ram).unwrap();
+    }
 }
 
 impl MBC3 {
-    fn new(rom: Vec<u8>) -> Self {
+    fn new(rom: Vec<u8>, title: &str) -> Self {
         let num_rom_banks = 2 << rom[0x148];
+
         let ram_size_kb = match rom[0x149] {
             0x00 => 0,
             0x01 => 2, // Listed in various unofficial docs as 2KB
@@ -347,14 +400,25 @@ impl MBC3 {
             _ => panic!("Unknown RAM size, ram_code: {}", rom[0x149]),
         };
 
+        let save_file_path = Path::new("save_data").join(title);
+        let mut ram = Vec::new();
+        if let Ok(mut file) = File::open(&save_file_path) {
+            file.read_to_end(&mut ram).unwrap();
+            info!("Read save data, path: {:?}", &save_file_path);
+        } else {
+            info!("No save data, checked path: {:?}", &save_file_path);
+            ram = vec![0; ram_size_kb * 1024];
+        }
+
         info!("MBC3 created");
         MBC3 {
             rom,
-            ram: vec![0; ram_size_kb * 1024],
+            ram,
             rom_bank_no: 0,
             ram_bank_no: 0,
             rtc: rtc::RTC::new(),
             ram_enable: false,
+            title: title.to_string(),
         }
     }
 }
@@ -398,11 +462,15 @@ impl Cartridge for MBC5 {
             _ => {}
         }
     }
+    fn write_save_data(&self) {
+        let save_file_path = Path::new("save_data").join(&self.title);
+        info!("Writing save file to: {:?}", &save_file_path);
+        fs::write(&save_file_path, &self.ram).unwrap();
+    }
 }
 
 impl MBC5 {
-    fn new(rom: Vec<u8>) -> Self {
-        let num_rom_banks = 2 << rom[0x148];
+    fn new(rom: Vec<u8>, title: &str) -> Self {
         let ram_size_kb = match rom[0x149] {
             0x00 => 0,
             0x01 => 2, // Listed in various unofficial docs as 2KB
@@ -420,6 +488,7 @@ impl MBC5 {
             rom_bank_no: 0,
             ram_bank_no: 0,
             ram_enable: false,
+            title: title.to_string(),
         }
     }
 }

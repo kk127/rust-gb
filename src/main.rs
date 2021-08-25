@@ -44,7 +44,7 @@ fn main() {
     let window = video_subsystem
         // .window("gbr", 960, 864)
         // .window("gbr", 160, 144)
-        .window("gbr", 480, 432)
+        .window("rust-gameboy", 480, 432)
         // .window("gbr", 320, 288)
         .position_centered()
         .build()
@@ -70,9 +70,10 @@ fn main() {
     // let mut cpu = Cpu::new("GAMEBOY.GB");
     // let mut cpu = Cpu::new("POKEMON.GB");
     // let mut cpu = Cpu::new("PM_CRYST.GBC");
-    // let mut cpu = Cpu::new("POKEMON_.GB");
+    // let mut cpu = Cpu::new("YUGIOH.GB");
+    let mut cpu = Cpu::new("POKEMON_.GB");
     // let mut cpu = Cpu::new("POKEMONRED.GB");
-    let mut cpu = Cpu::new("KIRBY'S.GB");
+    // let mut cpu = Cpu::new("KIRBY'S.GB");
     // let mut cpu = Cpu::new("ZELDANA.GBC");
 
     let mut step_count: u64 = 0;
@@ -148,11 +149,12 @@ fn main() {
             }
         }
 
-        let wait = time::Duration::from_micros(16742); // 1s / 59.73Hz * 10**6 = 16742.0056923 ms
+        let wait = time::Duration::from_micros(1000000 / 60); // 1s / 59.73Hz * 10**6 = 16742.0056923 ms
         let elapsed = now.elapsed();
 
         if wait > elapsed {
             thread::sleep(wait - elapsed);
         }
     }
+    cpu.mmu.cartridge.write_save_data();
 }
