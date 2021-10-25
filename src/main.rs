@@ -71,12 +71,13 @@ fn main() {
     // let mut cpu = Cpu::new("POKEMON.GB");
     // let mut cpu = Cpu::new("PM_CRYST.GBC");
     // let mut cpu = Cpu::new("YUGIOH.GB");
-    let mut cpu = Cpu::new("POKEMON_.GB");
-    // let mut cpu = Cpu::new("POKEMONRED.GB");
+    // let mut cpu = Cpu::new("POKEMON_.GB");
+    let mut cpu = Cpu::new("POKEMONRED.GB");
     // let mut cpu = Cpu::new("KIRBY'S.GB");
     // let mut cpu = Cpu::new("ZELDANA.GBC");
 
     let mut step_count: u64 = 0;
+
     'running: loop {
         // for _ in 0..1000 {
         // info!("loop");
@@ -112,24 +113,6 @@ fn main() {
         canvas.copy(&texture, None, None).unwrap();
         canvas.present();
 
-        // for event in event_pump.poll_iter() {
-        //     match event {
-        //         Event::Quit { .. }
-        //         | Event::KeyDown {
-        //             keycode: Some(Keycode::Escape),
-        //             ..
-        //         } => break 'running,
-        //         // Event::KeyDown {
-        //         //     keycode: Some(keycode),
-        //         //     ..
-        //         // } => handle_keydown(&mut cpu, keycode),
-        //         // Event::KeyUp {
-        //         //     keycode: Some(keycode),
-        //         //     ..
-        //         // } => handle_keyup(&mut cpu, keycode),
-        //         _ => (),
-        //     }
-        // }
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -152,9 +135,9 @@ fn main() {
         let wait = time::Duration::from_micros(1000000 / 60); // 1s / 59.73Hz * 10**6 = 16742.0056923 ms
         let elapsed = now.elapsed();
 
-        if wait > elapsed {
-            thread::sleep(wait - elapsed);
-        }
+        // if wait > elapsed {
+        //     thread::sleep(wait - elapsed);
+        // }
     }
     cpu.mmu.cartridge.write_save_data();
 }

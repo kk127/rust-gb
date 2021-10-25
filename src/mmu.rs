@@ -2,12 +2,14 @@ use crate::cartridge::{self, Cartridge};
 use crate::cpu::Interrupt;
 use crate::joypad::Joypad;
 use crate::ppu::Ppu;
+use crate::serial::Serial;
 use crate::timer::Timer;
 
 pub struct Mmu {
     pub cartridge: Box<dyn Cartridge>,
     pub ppu: Ppu,
     pub joypad: Joypad,
+    serial: Serial,
     timer: Timer,
     ram: [u8; 0x2000],
     pub interrupt_flag: u8,
@@ -21,6 +23,7 @@ impl Mmu {
             cartridge: cartridge::new(cartridge_name),
             ppu: Ppu::new(),
             joypad: Joypad::new(),
+            serial: Serial::new(),
             timer: Timer::new(),
             ram: [0; 0x2000],
             interrupt_flag: 0,
@@ -62,14 +65,15 @@ impl Mmu {
             0xc000..=0xdfff => self.ram[(addr & 0x1fff) as usize],
             0xe000..=0xfdff => self.ram[((addr - 0x2000) & 0x1fff) as usize],
             0xfe00..=0xfe9f => self.ppu.read(addr),
-            0xfea0..=0xfeff => 0xff, // Not usable
+            0xfea0..=0xfeff => 0x00, // Not usable
             0xff00 => self.joypad.read_byte(addr),
+            0xff01..=0xff02 => self.serial.read(addr),
             0xff0f => self.interrupt_flag,
             0xff04..=0xff07 => self.timer.read(addr),
-            0xff80..=0xfffe => self.hram[(addr & 0x7f) as usize],
             0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.read(addr),
+            0xff80..=0xfffe => self.hram[(addr & 0x7f) as usize],
             0xffff => self.interrupt_enable,
-            _ => 0xff,
+            _ => 0x00,
         }
     }
 
@@ -84,6 +88,7 @@ impl Mmu {
             0xfea0..=0xfeff => (), // Not usable
             0xff00 => self.joypad.write_byte(addr, value),
             0xff0f => self.interrupt_flag = value,
+            0xff01..=0xff02 => self.serial.write(addr, value),
             0xff04..=0xff07 => self.timer.write(addr, value),
             0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.write(addr, value),
             0xff46 => self.do_dma(value),

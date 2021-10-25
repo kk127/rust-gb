@@ -100,7 +100,10 @@ pub fn new(cartridge_name: &str) -> Box<dyn Cartridge> {
 }
 
 fn get_title(rom: &[u8]) -> String {
-    rom.iter().map(|&s| s as char).collect::<String>()
+    rom.iter()
+        .filter(|&s| (*s != 0) & (*s != 128))
+        .map(|&s| s as char)
+        .collect::<String>()
 }
 
 fn get_mbc_type_name(mbc_type: u8) -> &'static str {
@@ -219,10 +222,12 @@ impl MBC1 {
             _ => panic!("Unknown RAM size, ram_code: {}", rom[0x149]),
         };
 
+        let ram = get_ram(title, ram_size_kb);
+
         info!("MBC1 created");
         MBC1 {
             rom,
-            ram: vec![0; ram_size_kb * 1024],
+            ram,
             mode_flag: false,
             is_ram_enable: false,
             rom_bank_no: 0,
@@ -400,15 +405,7 @@ impl MBC3 {
             _ => panic!("Unknown RAM size, ram_code: {}", rom[0x149]),
         };
 
-        let save_file_path = Path::new("save_data").join(title);
-        let mut ram = Vec::new();
-        if let Ok(mut file) = File::open(&save_file_path) {
-            file.read_to_end(&mut ram).unwrap();
-            info!("Read save data, path: {:?}", &save_file_path);
-        } else {
-            info!("No save data, checked path: {:?}", &save_file_path);
-            ram = vec![0; ram_size_kb * 1024];
-        }
+        let ram = get_ram(title, ram_size_kb);
 
         info!("MBC3 created");
         MBC3 {
@@ -481,14 +478,29 @@ impl MBC5 {
             _ => panic!("Unknown RAM size, ram_code: {}", rom[0x149]),
         };
 
+        let ram = get_ram(title, ram_size_kb);
+
         info!("MBC5 created");
         MBC5 {
             rom,
-            ram: vec![0; ram_size_kb * 1024],
+            ram,
             rom_bank_no: 0,
             ram_bank_no: 0,
             ram_enable: false,
             title: title.to_string(),
         }
     }
+}
+
+fn get_ram(title: &str, ram_size_kb: usize) -> Vec<u8> {
+    let save_file_path = Path::new("save_data").join(title);
+    let mut ram = Vec::new();
+    if let Ok(mut file) = File::open(&save_file_path) {
+        file.read_to_end(&mut ram).unwrap();
+        info!("Read save data, path: {:?}", &save_file_path);
+    } else {
+        info!("No save data, checked path: {:?}", &save_file_path);
+        ram = vec![0; ram_size_kb * 1024];
+    }
+    ram
 }
