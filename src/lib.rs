@@ -8,3 +8,4 @@ mod rtc;
 mod serial;
 mod timer;
 pub mod utils;
+mod wram;

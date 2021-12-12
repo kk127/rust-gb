@@ -61,6 +61,8 @@ pub fn new(cartridge_name: &str) -> Box<dyn Cartridge> {
     let title = get_title(&rom[0x134..=0x143]);
     info!("ROM title: {}", title);
 
+    info!("CGB features byte 0x143: 0x{:x}", rom[0x143]);
+
     let mbc_type = rom[0x147];
     let mbc_type_name = get_mbc_type_name(mbc_type);
 

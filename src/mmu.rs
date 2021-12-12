@@ -4,6 +4,7 @@ use crate::joypad::Joypad;
 use crate::ppu::Ppu;
 use crate::serial::Serial;
 use crate::timer::Timer;
+use crate::wram::Wram;
 
 pub struct Mmu {
     pub cartridge: Box<dyn Cartridge>,
@@ -11,7 +12,7 @@ pub struct Mmu {
     pub joypad: Joypad,
     serial: Serial,
     timer: Timer,
-    ram: [u8; 0x2000],
+    wram: Wram,
     pub interrupt_flag: u8,
     pub interrupt_enable: u8,
     hram: [u8; 0x7f],
@@ -25,7 +26,7 @@ impl Mmu {
             joypad: Joypad::new(),
             serial: Serial::new(),
             timer: Timer::new(),
-            ram: [0; 0x2000],
+            wram: Wram::new(),
             interrupt_flag: 0,
             interrupt_enable: 0,
             hram: [0; 0x7f],
@@ -62,8 +63,8 @@ impl Mmu {
             0x0000..=0x7fff => self.cartridge.read(addr),
             0x8000..=0x9fff => self.ppu.read(addr),
             0xa000..=0xbfff => self.cartridge.read(addr),
-            0xc000..=0xdfff => self.ram[(addr & 0x1fff) as usize],
-            0xe000..=0xfdff => self.ram[((addr - 0x2000) & 0x1fff) as usize],
+            0xc000..=0xdfff => self.wram.read_byte(addr & 0x1fff),
+            0xe000..=0xfdff => self.wram.read_byte((addr - 0x2000) & 0x1fff),
             0xfe00..=0xfe9f => self.ppu.read(addr),
             0xfea0..=0xfeff => 0x00, // Not usable
             0xff00 => self.joypad.read_byte(addr),
@@ -71,6 +72,7 @@ impl Mmu {
             0xff0f => self.interrupt_flag,
             0xff04..=0xff07 => self.timer.read(addr),
             0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.read(addr),
+            0xff70 => self.wram.get_bank_idnex(),
             0xff80..=0xfffe => self.hram[(addr & 0x7f) as usize],
             0xffff => self.interrupt_enable,
             _ => 0x00,
@@ -82,8 +84,8 @@ impl Mmu {
             0x0000..=0x7fff => self.cartridge.write(addr, value),
             0x8000..=0x9fff => self.ppu.write(addr, value),
             0xa000..=0xbfff => self.cartridge.write(addr, value),
-            0xc000..=0xdfff => self.ram[(addr & 0x1fff) as usize] = value,
-            0xe000..=0xfdff => self.ram[((addr - 0x2000) & 0x1fff) as usize] = value,
+            0xc000..=0xdfff => self.wram.write_byte(addr & 0x1fff, value),
+            0xe000..=0xfdff => self.wram.write_byte((addr - 0x2000) & 0x1fff, value),
             0xfe00..=0xfe9f => self.ppu.write(addr, value),
             0xfea0..=0xfeff => (), // Not usable
             0xff00 => self.joypad.write_byte(addr, value),
@@ -92,6 +94,7 @@ impl Mmu {
             0xff04..=0xff07 => self.timer.write(addr, value),
             0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.write(addr, value),
             0xff46 => self.do_dma(value),
+            0xff70 => self.wram.set_bank_index(value),
             0xff80..=0xfffe => self.hram[(addr & 0x7f) as usize] = value,
             0xffff => self.interrupt_enable = value,
             _ => (),

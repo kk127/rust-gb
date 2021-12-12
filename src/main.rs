@@ -71,8 +71,8 @@ fn main() {
     // let mut cpu = Cpu::new("POKEMON.GB");
     // let mut cpu = Cpu::new("PM_CRYST.GBC");
     // let mut cpu = Cpu::new("YUGIOH.GB");
-    // let mut cpu = Cpu::new("POKEMON_.GB");
-    let mut cpu = Cpu::new("POKEMONRED.GB");
+    let mut cpu = Cpu::new("POKEMON_.GB");
+    // let mut cpu = Cpu::new("POKEMONRED.GB");
     // let mut cpu = Cpu::new("KIRBY'S.GB");
     // let mut cpu = Cpu::new("ZELDANA.GBC");
 
@@ -132,7 +132,7 @@ fn main() {
             }
         }
 
-        let wait = time::Duration::from_micros(1000000 / 60 / 5); // 1s / 59.73Hz * 10**6 = 16742.0056923 ms
+        let wait = time::Duration::from_micros(1000000 / 60); // 1s / 59.73Hz * 10**6 = 16742.0056923 ms
         let elapsed = now.elapsed();
 
         if wait > elapsed {
