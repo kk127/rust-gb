@@ -9,16 +9,67 @@ pub struct Ppu {
     ly: u8,
     lyc: u8,
     dma: u8,
-    bgp: u8,
-    obp0: u8,
-    obp1: u8,
     wy: u8,
     wx: u8,
     vbk: u8,
+    bgp: Bgp,
     frame: [u8; 160 * 144],
     counter: u16,
     irq_lcdc: bool,
     irq_vblank: bool,
+}
+
+struct Bgp {
+    specification_index: u8,
+    palette: [u8; 0x40],
+}
+
+impl Bgp {
+    pub fn new() -> Self {
+        Self {
+            specification_index: 0,
+            palette: [0; 0x40],
+        }
+    }
+
+    pub fn get_specification_index(&self) -> u8 {
+        self.specification_index
+    }
+
+    pub fn set_specification_index(&mut self, value: u8) {
+        self.specification_index = value;
+    }
+
+    fn is_autoincrement(&self) -> bool {
+        (self.specification_index >> 7) == 1
+    }
+
+    fn get_index(&self) -> u8 {
+        self.specification_index & 0x3f
+    }
+
+    pub fn get_color_data(&self) -> u8 {
+        let index = self.get_index() as usize;
+        self.palette[index]
+    }
+
+    pub fn set_color_data(&mut self, value: u8) {
+        let index = self.get_index() as usize;
+        self.palette[index] = value;
+
+        if self.is_autoincrement() {
+            self.specification_index += 1;
+        }
+    }
+
+    pub fn get_pixel_color(&self, palette_index: u8, pixel_value: u8) -> u16 {
+        let pixel_palette_index = (palette_index * 8 + pixel_value * 2) as usize;
+
+        let pixel_value_lower = self.palette[pixel_palette_index];
+        let pixel_value_higher = self.palette[pixel_palette_index + 1];
+
+        ((pixel_value_higher as u16) << 8) | (pixel_value_lower as u16)
+    }
 }
 
 enum MapArea {
@@ -55,12 +106,10 @@ impl Ppu {
             ly: 0,
             lyc: 0,
             dma: 0,
-            bgp: 0,
-            obp0: 0,
-            obp1: 0,
             wy: 0,
             wx: 0,
             vbk: 0,
+            bgp: Bgp::new(),
             frame: [0; 160 * 144],
             counter: 0,
             irq_lcdc: false,
@@ -416,12 +465,11 @@ impl Ppu {
             0xff44 => self.ly,
             0xff45 => self.lyc,
             0xff46 => self.dma,
-            0xff47 => self.bgp,
-            0xff48 => self.obp0,
-            0xff49 => self.obp1,
             0xff4a => self.wy,
             0xff4b => self.wx,
             0xff4f => self.get_vbk(),
+            0xff68 => self.bgp.get_specification_index(),
+            0xff69 => self.bgp.get_color_data(),
 
             _ => panic!("Invalid address: 0x{:04x}", addr),
         }
@@ -468,12 +516,11 @@ impl Ppu {
                     self.update_lyc_interrupt();
                 }
             }
-            0xff47 => self.bgp = value,
-            0xff48 => self.obp0 = value,
-            0xff49 => self.obp1 = value,
             0xff4a => self.wy = value,
             0xff4b => self.wx = value,
             0xff4f => self.set_vbk(value),
+            0xff68 => self.bgp.set_specification_index(value),
+            0xff69 => self.bgp.set_color_data(value),
 
             _ => panic!("Invalid address: 0x{:04x}", addr),
         }
@@ -509,10 +556,6 @@ impl Ppu {
             self.ly, self.scx, self.scy
         );
         debug!("lcdc: 0x{:02x}, stat: 0x{:02x}", self.lcdc, self.stat);
-        debug!(
-            "bgp: {}, obp0: {}, obp1: {}, wy: {}, wx: {}",
-            self.bgp, self.obp0, self.obp1, self.wy, self.wx
-        );
         debug!("mmu_clock: {}, update_clock: {}", self.counter, clock);
 
         if !self.is_lcd_and_ppu_enable() {
