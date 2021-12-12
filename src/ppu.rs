@@ -12,23 +12,32 @@ pub struct Ppu {
     wy: u8,
     wx: u8,
     vbk: u8,
-    bgp: Bgp,
+    bgp: Palette,
+    objp: Palette,
     frame: [u8; 160 * 144],
     counter: u16,
     irq_lcdc: bool,
     irq_vblank: bool,
 }
 
-struct Bgp {
-    specification_index: u8,
-    palette: [u8; 0x40],
+#[derive(Eq, PartialEq)]
+enum PaletteType {
+    BackGround,
+    Object,
 }
 
-impl Bgp {
-    pub fn new() -> Self {
+struct Palette {
+    specification_index: u8,
+    palette: [u8; 0x40],
+    palette_type: PaletteType,
+}
+
+impl Palette {
+    pub fn new(palette_type: PaletteType) -> Self {
         Self {
             specification_index: 0,
             palette: [0; 0x40],
+            palette_type,
         }
     }
 
@@ -63,6 +72,12 @@ impl Bgp {
     }
 
     pub fn get_pixel_color(&self, palette_index: u8, pixel_value: u8) -> u16 {
+        if self.palette_type == PaletteType::Object {
+            if pixel_value == 0 {
+                panic!("Invalid palette access index 0");
+            }
+        }
+
         let pixel_palette_index = (palette_index * 8 + pixel_value * 2) as usize;
 
         let pixel_value_lower = self.palette[pixel_palette_index];
@@ -109,7 +124,8 @@ impl Ppu {
             wy: 0,
             wx: 0,
             vbk: 0,
-            bgp: Bgp::new(),
+            bgp: Palette::new(PaletteType::BackGround),
+            objp: Palette::new(PaletteType::Object),
             frame: [0; 160 * 144],
             counter: 0,
             irq_lcdc: false,
@@ -470,6 +486,8 @@ impl Ppu {
             0xff4f => self.get_vbk(),
             0xff68 => self.bgp.get_specification_index(),
             0xff69 => self.bgp.get_color_data(),
+            0xff6a => self.objp.get_specification_index(),
+            0xff6b => self.objp.get_color_data(),
 
             _ => panic!("Invalid address: 0x{:04x}", addr),
         }
@@ -521,6 +539,8 @@ impl Ppu {
             0xff4f => self.set_vbk(value),
             0xff68 => self.bgp.set_specification_index(value),
             0xff69 => self.bgp.set_color_data(value),
+            0xff6a => self.objp.set_specification_index(value),
+            0xff6b => self.objp.set_color_data(value),
 
             _ => panic!("Invalid address: 0x{:04x}", addr),
         }
