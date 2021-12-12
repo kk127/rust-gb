@@ -1,6 +1,6 @@
 use log::debug;
 pub struct Ppu {
-    vram: [u8; 0x2000],
+    vram: [u8; 0x4000],
     oam: [u8; 0xa0],
     lcdc: u8,
     stat: u8,
@@ -14,6 +14,7 @@ pub struct Ppu {
     obp1: u8,
     wy: u8,
     wx: u8,
+    vbk: u8,
     frame: [u8; 160 * 144],
     counter: u16,
     irq_lcdc: bool,
@@ -45,7 +46,7 @@ enum Mode {
 impl Ppu {
     pub(crate) fn new() -> Self {
         Ppu {
-            vram: [0; 0x2000],
+            vram: [0; 0x4000],
             oam: [0; 0xa0],
             lcdc: 0x80,
             stat: 0x02,
@@ -59,12 +60,22 @@ impl Ppu {
             obp1: 0,
             wy: 0,
             wx: 0,
+            vbk: 0,
             frame: [0; 160 * 144],
             counter: 0,
             irq_lcdc: false,
             irq_vblank: false,
         }
     }
+
+    fn get_vbk(&self) -> u8 {
+        0b1111_1110 | self.vbk
+    }
+
+    fn set_vbk(&mut self, value: u8) {
+        self.vbk = value & 1;
+    }
+
     pub fn get_frame(&self) -> &[u8] {
         &self.frame
     }
@@ -410,6 +421,7 @@ impl Ppu {
             0xff49 => self.obp1,
             0xff4a => self.wy,
             0xff4b => self.wx,
+            0xff4f => self.get_vbk(),
 
             _ => panic!("Invalid address: 0x{:04x}", addr),
         }
@@ -461,6 +473,7 @@ impl Ppu {
             0xff49 => self.obp1 = value,
             0xff4a => self.wy = value,
             0xff4b => self.wx = value,
+            0xff4f => self.set_vbk(value),
 
             _ => panic!("Invalid address: 0x{:04x}", addr),
         }
