@@ -142,6 +142,7 @@ fn main() {
         }
 
         let wait = time::Duration::from_micros(1000000 / 60); // 1s / 59.73Hz * 10**6 = 16742.0056923 ms
+                                                              // let wait = time::Duration::from_micros(1000000 / 60 / 5); // 1s / 59.73Hz * 10**6 = 16742.0056923 ms
         let elapsed = now.elapsed();
 
         if wait > elapsed {
