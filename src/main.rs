@@ -42,9 +42,9 @@ fn main() {
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        // .window("gbr", 960, 864)
+        .window("gbr", 960, 864)
         // .window("gbr", 160, 144)
-        .window("rust-gameboy", 480, 432)
+        // .window("rust-gameboy", 480, 432)
         // .window("gbr", 320, 288)
         .position_centered()
         .build()
@@ -70,7 +70,13 @@ fn main() {
     // let mut cpu = Cpu::new("GAMEBOY.GB");
     // let mut cpu = Cpu::new("POKEMON.GB");
     // let mut cpu = Cpu::new("PM_CRYST.GBC");
-    let mut cpu = Cpu::new("YUGIOH.GB");
+    // let mut cpu = Cpu::new("YUGIOH.GB");
+    // let mut cpu = Cpu::new("YUGIO4.GBC");
+    // let mut cpu = Cpu::new("YUGIOH3.GBC");
+    let mut cpu = Cpu::new("DRAGON.GB");
+    // let mut cpu = Cpu::new("MEDAROT2.GB");
+    // let mut cpu = Cpu::new("MEDAROT3.GBC");
+    // let mut cpu = Cpu::new("MOBILETE.GBC");
     // let mut cpu = Cpu::new("POKEMON_.GB");
     // let mut cpu = Cpu::new("POKEMONRED.GB");
     // let mut cpu = Cpu::new("KIRBY'S.GB");
