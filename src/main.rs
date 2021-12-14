@@ -70,8 +70,8 @@ fn main() {
     // let mut cpu = Cpu::new("GAMEBOY.GB");
     // let mut cpu = Cpu::new("POKEMON.GB");
     // let mut cpu = Cpu::new("PM_CRYST.GBC");
-    // let mut cpu = Cpu::new("YUGIOH.GB");
-    let mut cpu = Cpu::new("POKEMON_.GB");
+    let mut cpu = Cpu::new("YUGIOH.GB");
+    // let mut cpu = Cpu::new("POKEMON_.GB");
     // let mut cpu = Cpu::new("POKEMONRED.GB");
     // let mut cpu = Cpu::new("KIRBY'S.GB");
     // let mut cpu = Cpu::new("ZELDANA.GBC");
@@ -101,9 +101,12 @@ fn main() {
                         let offset = y * pitch + x * 3;
                         let color = fb[y * 160 + x];
 
-                        buf[offset] = color;
-                        buf[offset + 1] = color;
-                        buf[offset + 2] = color;
+                        buf[offset] = ((color & 0b0001_1111) * 8) as u8;
+                        buf[offset + 1] = (((color >> 5) & 0b0001_1111) * 8) as u8;
+                        buf[offset + 2] = (((color >> 10) & 0b0001_1111) * 8) as u8;
+                        // buf[offset] = 255;
+                        // buf[offset + 1] = 255;
+                        // buf[offset + 2] = 255;
                     }
                 }
             })

@@ -72,6 +72,32 @@ impl Mmu {
             0xff0f => self.interrupt_flag,
             0xff04..=0xff07 => self.timer.read(addr),
             0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.read(addr),
+            0xff4f => self.ppu.read(addr),
+            0xff51 => {
+                println!("0xff51");
+                return 0;
+            }
+            0xff52 => {
+                println!("0xff52");
+                return 0;
+            }
+            0xff53 => {
+                println!("0xff53");
+                return 0;
+            }
+            0xff54 => {
+                println!("0xff54");
+                return 0;
+            }
+            0xff55 => {
+                println!("0xff55");
+                return 0;
+            }
+
+            0xff68 => self.ppu.read(addr),
+            0xff69 => self.ppu.read(addr),
+            0xff6a => self.ppu.read(addr),
+            0xff6b => self.ppu.read(addr),
             0xff70 => self.wram.get_bank_idnex(),
             0xff80..=0xfffe => self.hram[(addr & 0x7f) as usize],
             0xffff => self.interrupt_enable,
@@ -94,6 +120,29 @@ impl Mmu {
             0xff04..=0xff07 => self.timer.write(addr, value),
             0xff40..=0xff45 | 0xff47..=0xff4b => self.ppu.write(addr, value),
             0xff46 => self.do_dma(value),
+            0xff4f => self.ppu.write(addr, value),
+            0xff51 => println!("0xff51, write 0x{:x}", value),
+            0xff52 => println!("0xff52, write 0x{:x}", value),
+            0xff53 => println!("0xff53, write 0x{:x}", value),
+            0xff54 => println!("0xff54, write 0x{:x}", value),
+            0xff55 => println!("0xff55, write 0x{:x}", value),
+            0xff68 => {
+                println!("{}", addr);
+                self.ppu.write(addr, value)
+            }
+            0xff69 => {
+                println!("{}", addr);
+                self.ppu.write(addr, value)
+            }
+            0xff6a => {
+                println!("{}", addr);
+                self.ppu.write(addr, value)
+            }
+            0xff6b => {
+                println!("{}", addr);
+                self.ppu.write(addr, value)
+            }
+            0xff6c => todo!(), // OPRI
             0xff70 => self.wram.set_bank_index(value),
             0xff80..=0xfffe => self.hram[(addr & 0x7f) as usize] = value,
             0xffff => self.interrupt_enable = value,

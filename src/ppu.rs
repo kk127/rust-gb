@@ -14,7 +14,7 @@ pub struct Ppu {
     vbk: u8,
     bgp: Palette,
     objp: Palette,
-    frame: [u8; 160 * 144],
+    frame: [u16; 160 * 144],
     counter: u16,
     irq_lcdc: bool,
     irq_vblank: bool,
@@ -24,6 +24,34 @@ pub struct Ppu {
 enum PaletteType {
     BackGround,
     Object,
+}
+
+#[derive(Eq, PartialEq)]
+enum TileDataArea {
+    Bank0,
+    Bank1,
+}
+
+fn get_bank_number(tile_attribute: u8) -> TileDataArea {
+    let bank_flag = (tile_attribute >> 3) & 1 == 1;
+
+    if bank_flag {
+        TileDataArea::Bank1
+    } else {
+        TileDataArea::Bank0
+    }
+}
+
+fn is_vertical_flip(tile_attribute: u8) -> bool {
+    (tile_attribute >> 6) & 1 == 1
+}
+
+fn is_horizontal_flip(tile_attribute: u8) -> bool {
+    (tile_attribute >> 5) & 1 == 1
+}
+
+fn get_background_palette_number(tile_attribute: u8) -> u8 {
+    tile_attribute & 0b0000_0111
 }
 
 struct Palette {
@@ -64,6 +92,7 @@ impl Palette {
 
     pub fn set_color_data(&mut self, value: u8) {
         let index = self.get_index() as usize;
+        println!("set_color_data ff69: value: {}, index: {}", value, index);
         self.palette[index] = value;
 
         if self.is_autoincrement() {
@@ -137,11 +166,16 @@ impl Ppu {
         0b1111_1110 | self.vbk
     }
 
+    fn get_vram_bank_number(&self) -> u8 {
+        self.vbk
+    }
+
     fn set_vbk(&mut self, value: u8) {
+        println!("set vbk: bank{}", value & 1);
         self.vbk = value & 1;
     }
 
-    pub fn get_frame(&self) -> &[u8] {
+    pub fn get_frame(&self) -> &[u16] {
         &self.frame
     }
 
@@ -298,32 +332,32 @@ impl Ppu {
         (tile_row_low, tile_row_high)
     }
 
-    fn get_pixel_color(&self, tile_row_low: u8, tile_row_high: u8, offset_x: u8) -> u8 {
-        let tile_color = self.get_tile_color(tile_row_low, tile_row_high, offset_x);
+    // fn get_pixel_color(&self, tile_row_low: u8, tile_row_high: u8, offset_x: u8) -> u8 {
+    //     let tile_color = self.get_tile_color(tile_row_low, tile_row_high, offset_x);
 
-        match (self.bgp >> (tile_color << 1)) & 0x3 {
-            0 => 0xff,
-            1 => 0xaa,
-            2 => 0x55,
-            3 => 0x00,
-            _ => panic!("Invalid tile_color: {}", tile_color),
-        }
-    }
+    //     match (self.bgp >> (tile_color << 1)) & 0x3 {
+    //         0 => 0xff,
+    //         1 => 0xaa,
+    //         2 => 0x55,
+    //         3 => 0x00,
+    //         _ => panic!("Invalid tile_color: {}", tile_color),
+    //     }
+    // }
 
-    fn get_sprite_color(&mut self, tile_color: u8, sprite_flag: u8) -> u8 {
-        let palette = if sprite_flag & 0x10 > 0 {
-            self.obp1
-        } else {
-            self.obp0
-        };
+    // fn get_sprite_color(&mut self, tile_color: u8, sprite_flag: u8) -> u8 {
+    //     let palette = if sprite_flag & 0x10 > 0 {
+    //         self.obp1
+    //     } else {
+    //         self.obp0
+    //     };
 
-        match (palette >> (tile_color << 1)) & 0x3 {
-            0 => 0xff,
-            1 => 0xaa,
-            2 => 0x55,
-            3 | _ => 0x00,
-        }
-    }
+    //     match (palette >> (tile_color << 1)) & 0x3 {
+    //         0 => 0xff,
+    //         1 => 0xaa,
+    //         2 => 0x55,
+    //         3 | _ => 0x00,
+    //     }
+    // }
 
     fn get_tile_color(&self, tile_row_low: u8, tile_row_high: u8, offset_x: u8) -> u8 {
         let shift_num = 7 - offset_x;
@@ -331,6 +365,66 @@ impl Ppu {
         let bit_high = (tile_row_high >> shift_num) & 1;
 
         bit_high << 1 | bit_low
+    }
+
+    fn get_tile_attribute_and_index(&self, tile_x: u8, tile_y: u8, window_flag: bool) -> (u8, u8) {
+        let tile_map_index = (tile_x as usize) + (tile_y as usize) * 32;
+        let tile_map_addr = if window_flag {
+            match self.window_map_area() {
+                MapArea::Base1800 => 0x1800 + tile_map_index,
+                MapArea::Base1C00 => 0x1C00 + tile_map_index,
+            }
+        } else {
+            match self.bg_map_area() {
+                MapArea::Base1800 => 0x1800 + tile_map_index,
+                MapArea::Base1C00 => 0x1C00 + tile_map_index,
+            }
+        };
+
+        let tile_attribute_addr = tile_map_addr + 0x2000;
+        (self.vram[tile_attribute_addr], self.vram[tile_map_addr])
+    }
+
+    fn get_pixel_color(
+        &self,
+        tile_attribute: u8,
+        tile_index: u8,
+        offset_x: u8,
+        offset_y: u8,
+    ) -> u16 {
+        let mut tile_addr = match get_bank_number(tile_attribute) {
+            TileDataArea::Bank0 => 0,
+            TileDataArea::Bank1 => 0x2000,
+        };
+
+        tile_addr += match self.get_tile_area() {
+            TileArea::Base0000 => (tile_index as u16) * 16,
+            TileArea::Base1000 => {
+                (0x1000 as i16).wrapping_add((tile_index as i8 as i16) * 16) as u16
+            }
+        };
+
+        let pixel_low_index = match is_horizontal_flip(tile_attribute) {
+            false => 2 * offset_y,
+            true => 2 * (7 - offset_y),
+        };
+
+        let pixel_low_byte = self.vram[tile_addr as usize + pixel_low_index as usize];
+        let pixel_high_byte = self.vram[tile_addr as usize + (pixel_low_index + 1) as usize];
+
+        let shift_num = match is_vertical_flip(tile_attribute) {
+            false => 7 - offset_x,
+            true => offset_x,
+        };
+
+        let bit_low = (pixel_low_byte >> shift_num) & 1;
+        let bit_high = (pixel_high_byte >> shift_num) & 1;
+
+        let pixel_color_index = bit_high << 1 | bit_low;
+        let palette_number = get_background_palette_number(tile_attribute);
+        // println!("{:?}", self.bgp.palette);
+
+        self.bgp.get_pixel_color(palette_number, pixel_color_index)
     }
 
     fn render_bg(&mut self) {
@@ -357,109 +451,112 @@ impl Ppu {
             let offset_x = pixel_x & 0x07;
             let offset_y = pixel_y & 0x07;
 
-            let (tile_row_low, tile_row_high) =
-                self.get_bg_window_tile_row(tile_x, tile_y, offset_y, window_flag);
+            let (tile_attribute, tile_index) =
+                self.get_tile_attribute_and_index(tile_x, tile_y, window_flag);
 
-            let color = self.get_pixel_color(tile_row_low, tile_row_high, offset_x);
+            let pixel_color = self.get_pixel_color(tile_attribute, tile_index, offset_x, offset_y);
             let index = (x as usize) + (self.ly as usize) * 160;
-            debug!(
-                "render scan tile_x: {}, tile_y: {}, offset_x: {}, offset_y: {}, x: {}, color: {}",
-                tile_x, tile_y, offset_x, offset_y, x, color
-            );
-            debug!(
-                "tile_low, tile_high: {}, {}, window_flag: {}",
-                tile_row_low, tile_row_high, window_flag
-            );
-            self.frame[index] = color;
+            // debug!(
+            //     "render scan tile_x: {}, tile_y: {}, offset_x: {}, offset_y: {}, x: {}, color: {}",
+            //     tile_x, tile_y, offset_x, offset_y, x, pixel_color
+            // );
+
+            // println!(
+            //     "render scan tile_x: {}, tile_y: {}, offset_x: {}, offset_y: {}, x: {}, color: {}",
+            //     tile_x, tile_y, offset_x, offset_y, x, pixel_color
+            // );
+            self.frame[index] = pixel_color;
         }
     }
 
-    fn render_sprites(&mut self) {
-        let mut sprites_num = 0;
-        let height = if self.lcdc & 0x4 > 0 { 16 } else { 8 };
+    // fn render_sprites(&mut self) {
+    //     let mut sprites_num = 0;
+    //     let height = if self.lcdc & 0x4 > 0 { 16 } else { 8 };
 
-        for i in 0..40 {
-            let sprite_addr = i * 4;
+    //     for i in 0..40 {
+    //         let sprite_addr = i * 4;
 
-            let sprite_y = self.oam[sprite_addr].wrapping_sub(16);
-            let sprite_x = self.oam[sprite_addr + 1].wrapping_sub(8);
-            let tile_no =
-                self.oam[sprite_addr + 2] & if self.is_obj_square() { 0xff } else { 0xfe };
-            let sprite_flag = self.oam[sprite_addr + 3];
+    //         let sprite_y = self.oam[sprite_addr].wrapping_sub(16);
+    //         let sprite_x = self.oam[sprite_addr + 1].wrapping_sub(8);
+    //         let tile_no =
+    //             self.oam[sprite_addr + 2] & if self.is_obj_square() { 0xff } else { 0xfe };
+    //         let sprite_flag = self.oam[sprite_addr + 3];
 
-            let bg_window_priority_flag = sprite_flag & 0x80 > 0;
-            let flip_y_flag = sprite_flag & 0x40 > 0;
-            let flip_x_flag = sprite_flag & 0x20 > 0;
+    //         let bg_window_priority_flag = sprite_flag & 0x80 > 0;
+    //         let flip_y_flag = sprite_flag & 0x40 > 0;
+    //         let flip_x_flag = sprite_flag & 0x20 > 0;
 
-            if (sprite_y > self.ly) || (self.ly >= sprite_y + height) {
-                continue;
-            }
+    //         if (sprite_y > self.ly) || (self.ly >= sprite_y + height) {
+    //             continue;
+    //         }
 
-            if (160 <= sprite_x) && (sprite_x <= 248) {
-                continue;
-            }
+    //         if (160 <= sprite_x) && (sprite_x <= 248) {
+    //             continue;
+    //         }
 
-            sprites_num += 1;
-            if sprites_num > 10 {
-                break;
-            }
+    //         sprites_num += 1;
+    //         if sprites_num > 10 {
+    //             break;
+    //         }
 
-            // let tile_no = if self.lcdc & 0x4 > 0 {
-            //     if (self.ly + 8 < sprite_y) ^ flip_y_flag {
-            //         self.oam[sprite_addr + 2] & 0xfe
-            //     } else {
-            //         self.oam[sprite_addr + 2] | 0x01
-            //     }
-            // } else {
-            //     self.oam[sprite_addr + 2]
-            // };
+    //         // let tile_no = if self.lcdc & 0x4 > 0 {
+    //         //     if (self.ly + 8 < sprite_y) ^ flip_y_flag {
+    //         //         self.oam[sprite_addr + 2] & 0xfe
+    //         //     } else {
+    //         //         self.oam[sprite_addr + 2] | 0x01
+    //         //     }
+    //         // } else {
+    //         //     self.oam[sprite_addr + 2]
+    //         // };
 
-            let offset_y = if flip_y_flag {
-                height - 1 - (self.ly - sprite_y)
-            } else {
-                self.ly - sprite_y
-            };
+    //         let offset_y = if flip_y_flag {
+    //             height - 1 - (self.ly - sprite_y)
+    //         } else {
+    //             self.ly - sprite_y
+    //         };
 
-            let (tile_row_low, tile_row_high) = self.get_sprite_tile_row(tile_no, offset_y);
+    //         let (tile_row_low, tile_row_high) = self.get_sprite_tile_row(tile_no, offset_y);
 
-            for offset_x in 0..8 {
-                if sprite_x.wrapping_add(offset_x) >= 160 {
-                    break;
-                }
-                let pixel_x = sprite_x.wrapping_add(offset_x);
+    //         for offset_x in 0..8 {
+    //             if sprite_x.wrapping_add(offset_x) >= 160 {
+    //                 break;
+    //             }
+    //             let pixel_x = sprite_x.wrapping_add(offset_x);
 
-                let index_x = if flip_x_flag { 7 - offset_x } else { offset_x };
-                let tile_color = self.get_tile_color(tile_row_low, tile_row_high, index_x);
+    //             let index_x = if flip_x_flag { 7 - offset_x } else { offset_x };
+    //             let tile_color = self.get_tile_color(tile_row_low, tile_row_high, index_x);
 
-                if tile_color == 0 {
-                    continue;
-                }
-                let index = (pixel_x as usize) + (self.ly as usize) * 160;
-                if self.frame[index] != 0xff && bg_window_priority_flag {
-                    continue;
-                }
-                let color = self.get_sprite_color(tile_color, sprite_flag);
-                debug!("Sprite color: {}, x: {}", color, pixel_x);
-                // println!("Sprite color: {}, x: {}, ly: {}", color, pixel_x, self.ly);
-                self.frame[index] = color;
-            }
-        }
-    }
+    //             if tile_color == 0 {
+    //                 continue;
+    //             }
+    //             let index = (pixel_x as usize) + (self.ly as usize) * 160;
+    //             if self.frame[index] != 0xff && bg_window_priority_flag {
+    //                 continue;
+    //             }
+    //             let color = self.get_sprite_color(tile_color, sprite_flag);
+    //             debug!("Sprite color: {}, x: {}", color, pixel_x);
+    //             // println!("Sprite color: {}, x: {}, ly: {}", color, pixel_x, self.ly);
+    //             // self.frame[index] = color;
+    //         }
+    //     }
+    // }
 
     fn render_scan(&mut self) {
         if self.lcdc & 0x1 > 0 {
             self.render_bg();
         }
-        if self.is_obj_enable() {
-            self.render_sprites();
-        }
+        // if self.is_obj_enable() {
+        //     self.render_sprites();
+        // }
     }
 
     pub(crate) fn read(&self, addr: u16) -> u8 {
         match addr {
             0x8000..=0x9fff => {
                 if self.stat & 0x3 != 3 {
-                    self.vram[(addr & 0x1fff) as usize]
+                    let vram_addr =
+                        self.get_vram_bank_number() as usize * 0x2000 + (addr & 0x1fff) as usize;
+                    self.vram[vram_addr]
                 } else {
                     0xff
                 }
@@ -502,7 +599,9 @@ impl Ppu {
                         addr & 0x1fff,
                         value
                     );
-                    self.vram[(addr & 0x1fff) as usize] = value
+                    let vram_addr =
+                        self.get_vram_bank_number() as usize * 0x2000 + (addr & 0x1fff) as usize;
+                    self.vram[vram_addr] = value
                 }
             }
 
@@ -534,6 +633,9 @@ impl Ppu {
                     self.update_lyc_interrupt();
                 }
             }
+            0xff47 => println!("FF47 write"), // TODO
+            0xff48 => println!("FF48 write"),
+            0xff49 => println!("FF49 write"),
             0xff4a => self.wy = value,
             0xff4b => self.wx = value,
             0xff4f => self.set_vbk(value),
@@ -541,6 +643,7 @@ impl Ppu {
             0xff69 => self.bgp.set_color_data(value),
             0xff6a => self.objp.set_specification_index(value),
             0xff6b => self.objp.set_color_data(value),
+            0xff6c => todo!(), // OPRI
 
             _ => panic!("Invalid address: 0x{:04x}", addr),
         }

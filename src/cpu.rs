@@ -59,7 +59,7 @@ pub struct Cpu {
 impl Cpu {
     pub fn new(cartridge_name: &str) -> Self {
         Cpu {
-            a: 0,
+            a: 0x11,
             f: 0,
             b: 0,
             c: 0,
