@@ -54,7 +54,8 @@ struct MBC5 {
 
 pub fn new(cartridge_name: &str) -> Box<dyn Cartridge> {
     info!("Reading {} file...", cartridge_name);
-    let path = Path::new("cartridges").join(cartridge_name);
+    // let path = Path::new("cartridges").join(cartridge_name);
+    let path = Path::new(cartridge_name);
     let rom = fs::read(path).expect("Error while reading ROM file");
     info!("Finish reading {} file", cartridge_name);
 
