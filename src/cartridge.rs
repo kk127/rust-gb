@@ -1,6 +1,6 @@
 use std::fs;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::Path;
 
 use crate::rtc;
@@ -38,7 +38,7 @@ struct MBC3 {
     ram: Vec<u8>,
     rom_bank_no: u8,
     ram_bank_no: u8,
-    rtc: rtc::RTC,
+    rtc: rtc::Rtc,
     ram_enable: bool,
     title: String,
 }
@@ -80,9 +80,9 @@ pub fn new(cartridge_name: &str) -> Box<dyn Cartridge> {
         _ => panic!("Unknown RAM size, ram_code: {}", rom[0x149]),
     };
     let mut checksum: u8 = 0;
-    for index in 0x134..=0x14c {
+    (0x134..=0x14c).for_each(|index| {
         checksum = checksum.wrapping_sub(rom[index]).wrapping_sub(1);
-    }
+    });
     if checksum != rom[0x14d] {
         panic!("Error rom checksum");
     }
@@ -150,10 +150,8 @@ impl Cartridge for RomOnly {
         }
     }
 
-    fn write(&mut self, addr: u16, value: u8) {
-        match addr {
-            _ => {}
-        }
+    fn write(&mut self, _addr: u16, _value: u8) {
+        {}
     }
     fn write_save_data(&self) {}
 }
@@ -310,8 +308,6 @@ impl Cartridge for MBC2 {
 
 impl MBC2 {
     fn new(rom: Vec<u8>, title: &str) -> Self {
-        let num_rom_banks = 2 << rom[0x148];
-
         info!("MBC2 created");
         MBC2 {
             rom,
@@ -394,8 +390,6 @@ impl Cartridge for MBC3 {
 
 impl MBC3 {
     fn new(rom: Vec<u8>, title: &str) -> Self {
-        let num_rom_banks = 2 << rom[0x148];
-
         let ram_size_kb = match rom[0x149] {
             0x00 => 0,
             0x01 => 2, // Listed in various unofficial docs as 2KB
@@ -414,7 +408,7 @@ impl MBC3 {
             ram,
             rom_bank_no: 0,
             ram_bank_no: 0,
-            rtc: rtc::RTC::new(),
+            rtc: rtc::Rtc::new(),
             ram_enable: false,
             title: title.to_string(),
         }

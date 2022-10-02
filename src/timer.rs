@@ -153,7 +153,8 @@ impl Timer {
                 0 => 10,
                 1 => 4,
                 2 => 6,
-                3 | _ => 8,
+                3 => 8,
+                _ => 8,
             };
 
             let x = self.counter >> divider;

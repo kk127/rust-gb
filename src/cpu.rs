@@ -2372,10 +2372,10 @@ impl Cpu {
     fn jump_cc_nn(&mut self, cc: CcFlag) {
         debug!("Instruction jump_cc_nn {}", cc);
         let flag = match cc {
-            CcFlag::NZ => self.zero_flag == false,
-            CcFlag::Z => self.zero_flag == true,
-            CcFlag::NC => self.carry_flag == false,
-            CcFlag::C => self.carry_flag == true,
+            CcFlag::NZ => !self.zero_flag,
+            CcFlag::Z => self.zero_flag,
+            CcFlag::NC => !self.carry_flag,
+            CcFlag::C => self.carry_flag,
         };
 
         if flag {
@@ -2427,10 +2427,10 @@ impl Cpu {
     fn jr_cc_n(&mut self, cc: CcFlag) {
         debug!("Instruction jr_cc_n {}", cc);
         let flag = match cc {
-            CcFlag::NZ => self.zero_flag == false,
-            CcFlag::Z => self.zero_flag == true,
-            CcFlag::NC => self.carry_flag == false,
-            CcFlag::C => self.carry_flag == true,
+            CcFlag::NZ => !self.zero_flag,
+            CcFlag::Z => self.zero_flag,
+            CcFlag::NC => !self.carry_flag,
+            CcFlag::C => self.carry_flag,
         };
 
         if flag {
@@ -2477,10 +2477,10 @@ impl Cpu {
     fn call_cc_nn(&mut self, cc: CcFlag) {
         debug!("Instruction call_cc_nn {}", cc);
         let flag = match cc {
-            CcFlag::NZ => self.zero_flag == false,
-            CcFlag::Z => self.zero_flag == true,
-            CcFlag::NC => self.carry_flag == false,
-            CcFlag::C => self.carry_flag == true,
+            CcFlag::NZ => !self.zero_flag,
+            CcFlag::Z => self.zero_flag,
+            CcFlag::NC => !self.carry_flag,
+            CcFlag::C => self.carry_flag,
         };
         if flag {
             let addr = self.read_word(self.pc);
@@ -2539,10 +2539,10 @@ impl Cpu {
     fn ret_cc(&mut self, cc: CcFlag) {
         debug!("Instruction ret_cc {}", cc);
         let flag = match cc {
-            CcFlag::NZ => self.zero_flag == false,
-            CcFlag::Z => self.zero_flag == true,
-            CcFlag::NC => self.carry_flag == false,
-            CcFlag::C => self.carry_flag == true,
+            CcFlag::NZ => !self.zero_flag,
+            CcFlag::Z => self.zero_flag,
+            CcFlag::NC => !self.carry_flag,
+            CcFlag::C => self.carry_flag,
         };
         if flag {
             let sp = self.sp;
@@ -3030,50 +3030,50 @@ mod tests {
     fn test_set_flags_from_bytes_zero() {
         let mut cpu = Cpu::new("hello.gb");
         cpu.set_flags_from_byte(128);
-        assert_eq!(true, cpu.zero_flag);
-        assert_eq!(false, cpu.subtraction_flag);
-        assert_eq!(false, cpu.half_carry_flag);
-        assert_eq!(false, cpu.carry_flag);
+        assert!(cpu.zero_flag);
+        assert!(!cpu.subtraction_flag);
+        assert!(!cpu.half_carry_flag);
+        assert!(!cpu.carry_flag);
     }
 
     #[test]
     fn test_set_flags_from_bytes_sub() {
         let mut cpu = Cpu::new("hello.gb");
         cpu.set_flags_from_byte(64);
-        assert_eq!(false, cpu.zero_flag);
-        assert_eq!(true, cpu.subtraction_flag);
-        assert_eq!(false, cpu.half_carry_flag);
-        assert_eq!(false, cpu.carry_flag);
+        assert!(!cpu.zero_flag);
+        assert!(cpu.subtraction_flag);
+        assert!(!cpu.half_carry_flag);
+        assert!(!cpu.carry_flag);
     }
 
     #[test]
     fn test_set_flags_from_bytes_half() {
         let mut cpu = Cpu::new("hello.gb");
         cpu.set_flags_from_byte(32);
-        assert_eq!(false, cpu.zero_flag);
-        assert_eq!(false, cpu.subtraction_flag);
-        assert_eq!(true, cpu.half_carry_flag);
-        assert_eq!(false, cpu.carry_flag);
+        assert!(!cpu.zero_flag);
+        assert!(!cpu.subtraction_flag);
+        assert!(cpu.half_carry_flag);
+        assert!(!cpu.carry_flag);
     }
 
     #[test]
     fn test_set_flags_from_bytes_carry() {
         let mut cpu = Cpu::new("hello.gb");
         cpu.set_flags_from_byte(16);
-        assert_eq!(false, cpu.zero_flag);
-        assert_eq!(false, cpu.subtraction_flag);
-        assert_eq!(false, cpu.half_carry_flag);
-        assert_eq!(true, cpu.carry_flag);
+        assert!(!cpu.zero_flag);
+        assert!(!cpu.subtraction_flag);
+        assert!(!cpu.half_carry_flag);
+        assert!(cpu.carry_flag);
     }
 
     #[test]
     fn test_set_flags_from_bytes_all() {
         let mut cpu = Cpu::new("hello.gb");
         cpu.set_flags_from_byte(248);
-        assert_eq!(true, cpu.zero_flag);
-        assert_eq!(true, cpu.subtraction_flag);
-        assert_eq!(true, cpu.half_carry_flag);
-        assert_eq!(true, cpu.carry_flag);
+        assert!(cpu.zero_flag);
+        assert!(cpu.subtraction_flag);
+        assert!(cpu.half_carry_flag);
+        assert!(cpu.carry_flag);
     }
 
     #[test]

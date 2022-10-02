@@ -1,5 +1,5 @@
 use chrono::{DateTime, Local};
-pub struct RTC {
+pub struct Rtc {
     s: u8,
     m: u8,
     h: u8,
@@ -8,9 +8,9 @@ pub struct RTC {
     initialization_time: DateTime<Local>,
 }
 
-impl RTC {
+impl Rtc {
     pub fn new() -> Self {
-        RTC {
+        Rtc {
             s: 0,
             m: 0,
             h: 0,

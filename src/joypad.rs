@@ -20,6 +20,12 @@ pub enum Key {
     A,
 }
 
+impl Default for Joypad {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Joypad {
     /// Creates a new `Joypad`.
     pub fn new() -> Self {

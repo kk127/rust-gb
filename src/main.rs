@@ -1,4 +1,3 @@
-use env_logger;
 use rust_gb::cpu::Cpu;
 use rust_gb::joypad;
 // use sdl2::pixels::PixelFormatEnum;
@@ -7,7 +6,7 @@ use std::thread;
 use std::time;
 
 use clap::Parser;
-use log::{debug, info};
+use log::debug;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
@@ -32,12 +31,16 @@ fn translate_keycode(key: Keycode) -> Option<joypad::Key> {
 
 /// Handles key down event.
 fn handle_keydown(cpu: &mut Cpu, key: Keycode) {
-    translate_keycode(key).map(|k| cpu.mmu.joypad.keydown(k));
+    if let Some(k) = translate_keycode(key) {
+        cpu.mmu.joypad.keydown(k)
+    }
 }
 
 /// Handles key up event.
 fn handle_keyup(cpu: &mut Cpu, key: Keycode) {
-    translate_keycode(key).map(|k| cpu.mmu.joypad.keyup(k));
+    if let Some(k) = translate_keycode(key) {
+        cpu.mmu.joypad.keyup(k)
+    }
 }
 
 fn main() {
