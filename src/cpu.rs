@@ -2986,7 +2986,7 @@ mod tests {
 
     #[test]
     fn test_get_byte_from_flags_zero() {
-        let mut cpu = Cpu::new("hello.gb");
+        let mut cpu = Cpu::new("cartridges/hello.gb");
         cpu.set_zero_flag(true);
         let res = cpu.get_byte_from_flags();
         assert_eq!(0b1000_0000, res);
@@ -2994,7 +2994,7 @@ mod tests {
 
     #[test]
     fn test_get_byte_from_flags_sub() {
-        let mut cpu = Cpu::new("hello.gb");
+        let mut cpu = Cpu::new("cartridges/hello.gb");
         cpu.set_subtraction_flag(true);
         let res = cpu.get_byte_from_flags();
         assert_eq!(0b0100_0000, res);
@@ -3002,7 +3002,7 @@ mod tests {
 
     #[test]
     fn test_get_byte_from_flags_half() {
-        let mut cpu = Cpu::new("hello.gb");
+        let mut cpu = Cpu::new("cartridges/hello.gb");
         cpu.set_half_carry_flag(true);
         let res = cpu.get_byte_from_flags();
         assert_eq!(0b0010_0000, res);
@@ -3010,7 +3010,7 @@ mod tests {
 
     #[test]
     fn test_get_byte_from_flags_carry() {
-        let mut cpu = Cpu::new("hello.gb");
+        let mut cpu = Cpu::new("cartridges/hello.gb");
         cpu.set_carry_flag(true);
         let res = cpu.get_byte_from_flags();
         assert_eq!(0b0001_0000, res);
@@ -3018,7 +3018,7 @@ mod tests {
 
     #[test]
     fn test_get_byte_from_flags_all() {
-        let mut cpu = Cpu::new("hello.gb");
+        let mut cpu = Cpu::new("cartridges/hello.gb");
         cpu.set_zero_flag(true);
         cpu.set_subtraction_flag(true);
         cpu.set_half_carry_flag(true);
@@ -3028,7 +3028,7 @@ mod tests {
     }
     #[test]
     fn test_set_flags_from_bytes_zero() {
-        let mut cpu = Cpu::new("hello.gb");
+        let mut cpu = Cpu::new("cartridges/hello.gb");
         cpu.set_flags_from_byte(128);
         assert!(cpu.zero_flag);
         assert!(!cpu.subtraction_flag);
@@ -3038,7 +3038,7 @@ mod tests {
 
     #[test]
     fn test_set_flags_from_bytes_sub() {
-        let mut cpu = Cpu::new("hello.gb");
+        let mut cpu = Cpu::new("cartridges/hello.gb");
         cpu.set_flags_from_byte(64);
         assert!(!cpu.zero_flag);
         assert!(cpu.subtraction_flag);
@@ -3048,7 +3048,7 @@ mod tests {
 
     #[test]
     fn test_set_flags_from_bytes_half() {
-        let mut cpu = Cpu::new("hello.gb");
+        let mut cpu = Cpu::new("cartridges/hello.gb");
         cpu.set_flags_from_byte(32);
         assert!(!cpu.zero_flag);
         assert!(!cpu.subtraction_flag);
@@ -3058,7 +3058,7 @@ mod tests {
 
     #[test]
     fn test_set_flags_from_bytes_carry() {
-        let mut cpu = Cpu::new("hello.gb");
+        let mut cpu = Cpu::new("cartridges/hello.gb");
         cpu.set_flags_from_byte(16);
         assert!(!cpu.zero_flag);
         assert!(!cpu.subtraction_flag);
@@ -3068,7 +3068,7 @@ mod tests {
 
     #[test]
     fn test_set_flags_from_bytes_all() {
-        let mut cpu = Cpu::new("hello.gb");
+        let mut cpu = Cpu::new("cartridges/hello.gb");
         cpu.set_flags_from_byte(248);
         assert!(cpu.zero_flag);
         assert!(cpu.subtraction_flag);
@@ -3078,7 +3078,7 @@ mod tests {
 
     #[test]
     fn test_read_r8_all() {
-        let mut cpu = Cpu::new("hello.gb");
+        let mut cpu = Cpu::new("cartridges/hello.gb");
         cpu.write_r8(Register::A, 1);
         cpu.write_r8(Register::B, 2);
         cpu.write_r8(Register::C, 3);
