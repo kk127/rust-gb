@@ -30,11 +30,6 @@ enum TileArea {
     Base0000,
 }
 
-enum ObjSize {
-    Square,
-    Rectangle,
-}
-
 enum Mode {
     HBlank,       // Mode0
     VBlank,       // Mode1
@@ -114,42 +109,12 @@ impl Ppu {
         }
     }
 
-    fn get_obj_size(&self) -> ObjSize {
-        match ((self.lcdc >> 2) & 1) == 1 {
-            false => ObjSize::Square,
-            true => ObjSize::Rectangle,
-        }
-    }
     fn is_obj_square(&self) -> bool {
         (self.lcdc & 0x04) == 0
     }
 
     fn is_obj_enable(&self) -> bool {
         ((self.lcdc >> 1) & 1) == 1
-    }
-
-    fn is_bg_window_enable(&self) -> bool {
-        (self.lcdc & 1) == 1
-    }
-
-    fn is_lyc_eq_ly_stat_interrupt(&self) -> bool {
-        ((self.stat >> 6) & 1) == 1
-    }
-
-    fn is_mode2_oam_stat_interrupt(&self) -> bool {
-        ((self.stat >> 5) & 1) == 1
-    }
-
-    fn is_mode1_vblank_stat_interrupt(&self) -> bool {
-        ((self.stat >> 4) & 1) == 1
-    }
-
-    fn is_mode0_hblank_stat_interrupt(&self) -> bool {
-        ((self.stat >> 3) & 1) == 1
-    }
-
-    fn is_lcy_eq_ly_flag(&self) -> bool {
-        ((self.stat >> 2) & 1) == 1
     }
 
     fn get_mode_flag(&self) -> Mode {
@@ -164,16 +129,11 @@ impl Ppu {
 
     fn set_mode_flag(&mut self, mode: Mode) {
         match mode {
-            Mode::HBlank => self.stat = self.stat & 0xf8,
+            Mode::HBlank => self.stat &= 0xf8,
             Mode::VBlank => self.stat = (self.stat & 0xf8) | 1,
             Mode::SearchingOAM => self.stat = (self.stat & 0xf8) | 2,
             Mode::Drawing => self.stat = (self.stat & 0xf8) | 3,
         }
-    }
-
-    fn is_sprite_visible(&self, sprite_x: u8, sprite_y: u8, height: u8) -> bool {
-        (0 < sprite_x) && (sprite_x <= 160 + 7) &&                       // x condition
-        (sprite_y <= self.ly + 16) && (self.ly + 16 < sprite_y + height) // y condition
     }
 
     fn get_bg_window_tile_row(
@@ -199,7 +159,7 @@ impl Ppu {
         let tile_no = self.vram[tile_map_addr as usize];
         let mut tile_addr = match self.get_tile_area() {
             TileArea::Base0000 => (tile_no as u16) * 16,
-            TileArea::Base1000 => (0x1000 as i16).wrapping_add((tile_no as i8 as i16) * 16) as u16,
+            TileArea::Base1000 => (0x1000_i16).wrapping_add((tile_no as i8 as i16) * 16) as u16,
         };
         tile_addr = tile_addr.wrapping_add((offset_y as u16) * 2);
 
@@ -245,7 +205,8 @@ impl Ppu {
             0 => 0xff,
             1 => 0xaa,
             2 => 0x55,
-            3 | _ => 0x00,
+            3 => 0x00,
+            _ => 0x00,
         }
     }
 
@@ -266,8 +227,8 @@ impl Ppu {
                 && (wx as u16 <= (self.scx as u16) + (x as u16))
                 && (self.is_window_enable());
 
-            let mut pixel_x = 0;
-            let mut pixel_y = 0;
+            let pixel_x;
+            let pixel_y;
             if window_flag {
                 pixel_x = (x as u8).wrapping_sub(wx);
                 pixel_y = self.ly.wrapping_sub(wy);
@@ -319,7 +280,7 @@ impl Ppu {
                 continue;
             }
 
-            if (160 <= sprite_x) && (sprite_x <= 248) {
+            if (160..=248).contains(&sprite_x) {
                 continue;
             }
 

@@ -1,4 +1,3 @@
-use env_logger;
 use rust_gb::cpu::Cpu;
 use rust_gb::joypad;
 // use sdl2::pixels::PixelFormatEnum;
@@ -6,9 +5,15 @@ use std::env;
 use std::thread;
 use std::time;
 
-use log::{debug, info};
+use clap::Parser;
+use log::debug;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+
+#[derive(Parser)]
+struct Args {
+    file_path: String,
+}
 
 fn translate_keycode(key: Keycode) -> Option<joypad::Key> {
     match key {
@@ -26,12 +31,16 @@ fn translate_keycode(key: Keycode) -> Option<joypad::Key> {
 
 /// Handles key down event.
 fn handle_keydown(cpu: &mut Cpu, key: Keycode) {
-    translate_keycode(key).map(|k| cpu.mmu.joypad.keydown(k));
+    if let Some(k) = translate_keycode(key) {
+        cpu.mmu.joypad.keydown(k)
+    }
 }
 
 /// Handles key up event.
 fn handle_keyup(cpu: &mut Cpu, key: Keycode) {
-    translate_keycode(key).map(|k| cpu.mmu.joypad.keyup(k));
+    if let Some(k) = translate_keycode(key) {
+        cpu.mmu.joypad.keyup(k)
+    }
 }
 
 fn main() {
@@ -59,22 +68,8 @@ fn main() {
         .unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    // let mut cpu = Cpu::new("joypad.gb");
-    // let mut cpu = Cpu::new("cpu_instrs.gb");
-    // let mut cpu = Cpu::new("mem_timing.gb");
-    // let mut cpu = Cpu::new("02-write_timing.gb");
-    // let mut cpu = Cpu::new("meta_sprite.gb");
-    // let mut cpu = Cpu::new("DONKEYKO.GB");
-    // let mut cpu = Cpu::new("TETRIS.GB");
-    // let mut cpu = Cpu::new("MARIOLAN.GB");
-    // let mut cpu = Cpu::new("GAMEBOY.GB");
-    // let mut cpu = Cpu::new("POKEMON.GB");
-    // let mut cpu = Cpu::new("PM_CRYST.GBC");
-    // let mut cpu = Cpu::new("YUGIOH.GB");
-    // let mut cpu = Cpu::new("POKEMON_.GB");
-    let mut cpu = Cpu::new("POKEMONRED.GB");
-    // let mut cpu = Cpu::new("KIRBY'S.GB");
-    // let mut cpu = Cpu::new("ZELDANA.GBC");
+    let args = Args::parse();
+    let mut cpu = Cpu::new(&args.file_path);
 
     let mut step_count: u64 = 0;
 
@@ -135,9 +130,9 @@ fn main() {
         let wait = time::Duration::from_micros(1000000 / 60); // 1s / 59.73Hz * 10**6 = 16742.0056923 ms
         let elapsed = now.elapsed();
 
-        // if wait > elapsed {
-        //     thread::sleep(wait - elapsed);
-        // }
+        if wait > elapsed {
+            thread::sleep(wait - elapsed);
+        }
     }
     cpu.mmu.cartridge.write_save_data();
 }
